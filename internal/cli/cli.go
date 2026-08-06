@@ -26,7 +26,7 @@ const (
 	defaultLease = time.Hour
 	minimumLease = time.Minute
 	maximumLease = 24 * time.Hour
-	version      = "0.1.0"
+	version      = "0.1.1"
 )
 
 var (
@@ -96,7 +96,7 @@ func newSetupCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:     "setup <profile>",
 		Short:   "Store a secret and make its profile the default",
-		Long:    "Prompt for a secret in the current terminal, protect it with macOS user-presence authentication, and save only non-secret profile metadata on disk.",
+		Long:    "Prompt for a secret in the current terminal, store it in the macOS login Keychain with approval required for access, and save only non-secret profile metadata on disk.",
 		Example: "  key-session setup production-read-only --env MONGODB_URI --duration 1h\n  key-session setup github-read-only --env GITHUB_TOKEN --duration 30m",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, arguments []string) error {

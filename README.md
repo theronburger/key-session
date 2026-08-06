@@ -16,7 +16,7 @@ Store a secret once under a named profile. The terminal prompt is hidden:
 key-session setup production-read-only --env MONGODB_URI --duration 1h
 ```
 
-Approve a one-hour lease through macOS:
+Approve a one-hour lease through the native macOS Keychain password prompt:
 
 ```bash
 key-session grant production-read-only
@@ -37,4 +37,4 @@ key-session revoke
 
 Run `key-session help` or `key-session <command> --help` for complete examples. `status` and `profiles` support `--json` for agents.
 
-The secret is protected by macOS user-presence authentication at rest. Depending on system policy, macOS can ask for Touch ID, an Apple Watch, or the login password. During a lease the secret exists in the memory of a per-user broker and is never placed in process arguments or written to disk. Exact secret values and URI passwords are redacted from captured child output as a last line of defense; callers should still avoid printing credentials.
+The secret is encrypted in the macOS login Keychain at rest. Each grant requires the native Keychain password prompt. During a lease the secret exists in the memory of a per-user broker and is never placed in process arguments or written to disk. Exact secret values and URI passwords are redacted from captured child output as a last line of defense; callers should still avoid printing credentials.
