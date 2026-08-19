@@ -2,8 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: ["**"]
   schedule:
     - cron: "23 4 * * 1"
   workflow_dispatch:
@@ -19,7 +18,7 @@ concurrency:
 jobs:
   analyze:
     name: Analyze Go
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS, ARM64, key-session-local]
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

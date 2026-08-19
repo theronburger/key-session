@@ -19,6 +19,8 @@ key-session doctor
 
 `make check` is the core Go formatting, module, vet, race-test, Swift test, and build contract used by CI. CI additionally runs golangci-lint, actionlint, govulncheck, CodeQL, and a packaging dry run. Use `make release-dry-run` after changing packaging, icons, version metadata, Swift UI, daemon contracts, or native Keychain code.
 
+GitHub Actions uses only the private repository-scoped runner documented in [docs/SELF-HOSTED-RUNNER.md](docs/SELF-HOSTED-RUNNER.md). Run `scripts/local-runner.sh setup` once; the versioned pre-commit hook warns without blocking when its launchd service is offline. Never add `pull_request` or `pull_request_target` triggers to workflows targeting the persistent runner.
+
 ## Security boundaries
 
 - Never put secrets or consumer capabilities in arguments, files, logs, fixtures, screenshots, consumer labels, or reasons.

@@ -16,7 +16,7 @@ concurrency:
 jobs:
   release:
     name: Sign, notarize, and publish
-    runs-on: macos-14
+    runs-on: [self-hosted, macOS, ARM64, key-session-local]
     environment: release
     steps:
       - name: Check out source

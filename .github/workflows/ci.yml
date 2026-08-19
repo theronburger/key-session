@@ -2,8 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: ["**"]
   workflow_dispatch:
 
 permissions:
@@ -15,12 +14,8 @@ concurrency:
 
 jobs:
   test:
-    name: Test (${{ matrix.runner }})
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [macos-14, macos-26]
-    runs-on: ${{ matrix.runner }}
+    name: Test
+    runs-on: [self-hosted, macOS, ARM64, key-session-local]
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -34,7 +29,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS, ARM64, key-session-local]
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -54,7 +49,7 @@ jobs:
 
   vulnerabilities:
     name: Vulnerability scan
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS, ARM64, key-session-local]
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -71,7 +66,7 @@ jobs:
   package:
     name: Package universal app
     needs: [test, lint, vulnerabilities]
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS, ARM64, key-session-local]
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

@@ -23,6 +23,8 @@ All notable changes are documented here. The project follows [Semantic Versionin
 - CLI clients use launchd to start only the installed Key Session helper, preserving one supervisor and one canonical Keychain ACL identity.
 - Connection Doctor verifies runtime, descriptor, configuration, and audit-journal permissions from disk.
 - Universal release builds stage transactionally and can be rerun safely against an existing output directory.
+- All CI, CodeQL, packaging, and release jobs target a private repository-scoped Apple Silicon runner with the project Swift toolchain; GitHub-hosted runners are ineligible.
+- A pinned, checksum-verified local-runner bootstrap and non-blocking pre-commit availability warning keep the runner operational without weakening Swift requirements.
 
 ## [v0.3.0] - 2026-08-19
 

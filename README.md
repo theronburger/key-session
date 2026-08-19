@@ -138,4 +138,4 @@ make app
 make release-dry-run
 ```
 
-CI tests the supported macOS floor and current macOS, runs race detection, linting, `govulncheck`, CodeQL, and a universal packaging dry run. Tagged releases add Developer ID signing, Apple notarization, CycloneDX SBOMs, SHA-256 checksums, and GitHub build-provenance attestations. See [CONTRIBUTING.md](CONTRIBUTING.md) and [the release runbook](docs/RELEASING.md).
+CI runs exclusively on the repository's private Apple Silicon self-hosted runner with Swift 6.2 or newer. It runs race detection, linting, `govulncheck`, CodeQL, and a universal packaging dry run; no GitHub-hosted compute is eligible. Tagged releases add Developer ID signing, Apple notarization, CycloneDX SBOMs, SHA-256 checksums, and GitHub build-provenance attestations. See [CONTRIBUTING.md](CONTRIBUTING.md), [the runner guide](docs/SELF-HOSTED-RUNNER.md), and [the release runbook](docs/RELEASING.md).
