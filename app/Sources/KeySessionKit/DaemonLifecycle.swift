@@ -24,6 +24,7 @@ public enum DaemonLifecycleState: Equatable, Sendable {
 
 public actor DaemonLifecycleController {
     public static let launchAgentLabel = "com.theronburger.key-session.daemon"
+    static let applicationBundleIdentifier = "com.theronburger.key-session"
     private var preparedInstallation = false
 
     public init() {}
@@ -79,8 +80,31 @@ public actor DaemonLifecycleController {
         let launchAgents = fileManager.homeDirectoryForCurrentUser.appending(path: "Library/LaunchAgents")
         try fileManager.createDirectory(at: launchAgents, withIntermediateDirectories: true)
         let propertyListURL = launchAgents.appending(path: "\(Self.launchAgentLabel).plist")
-        let propertyList: [String: Any] = [
-            "Label": Self.launchAgentLabel,
+        let propertyList = Self.launchAgentPropertyList(installedBinary: installedBinary, logsDirectory: logsDirectory)
+        let data = try PropertyListSerialization.data(fromPropertyList: propertyList, format: .xml, options: 0)
+        let propertyListWasReplaced = (try? Data(contentsOf: propertyListURL)) != data
+        if propertyListWasReplaced {
+            try data.write(to: propertyListURL, options: .atomic)
+            try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: propertyListURL.path)
+        }
+
+        let target = "gui/\(getuid())/\(Self.launchAgentLabel)"
+        if forceRestart || propertyListWasReplaced { _ = run("/bin/launchctl", ["bootout", target]) }
+        let printResult = run("/bin/launchctl", ["print", target])
+        if printResult != 0 {
+            let domain = "gui/\(getuid())"
+            guard run("/bin/launchctl", ["bootstrap", domain, propertyListURL.path]) == 0 else {
+                throw DaemonClientError.unavailable("macOS could not register the Key Session helper.")
+            }
+        } else if helperWasReplaced && run("/bin/launchctl", ["kickstart", "-k", target]) != 0 {
+            throw DaemonClientError.unavailable("macOS could not start the Key Session helper.")
+        }
+    }
+
+    static func launchAgentPropertyList(installedBinary: URL, logsDirectory: URL) -> [String: Any] {
+        [
+            "Label": launchAgentLabel,
+            "AssociatedBundleIdentifiers": [applicationBundleIdentifier],
             "ProgramArguments": [installedBinary.path, "_daemon"],
             "RunAtLoad": true,
             "KeepAlive": true,
@@ -88,23 +112,6 @@ public actor DaemonLifecycleController {
             "StandardOutPath": logsDirectory.appending(path: "daemon.stdout.log").path,
             "StandardErrorPath": logsDirectory.appending(path: "daemon.stderr.log").path,
         ]
-        let data = try PropertyListSerialization.data(fromPropertyList: propertyList, format: .xml, options: 0)
-        if (try? Data(contentsOf: propertyListURL)) != data {
-            try data.write(to: propertyListURL, options: .atomic)
-            try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: propertyListURL.path)
-        }
-
-        let target = "gui/\(getuid())/\(Self.launchAgentLabel)"
-        if forceRestart { _ = run("/bin/launchctl", ["bootout", target]) }
-        let printResult = run("/bin/launchctl", ["print", target])
-        if printResult != 0 {
-            let domain = "gui/\(getuid())"
-            guard run("/bin/launchctl", ["bootstrap", domain, propertyListURL.path]) == 0 else {
-                throw DaemonClientError.unavailable("macOS could not register the Key Session helper.")
-            }
-        } else if (forceRestart || helperWasReplaced) && run("/bin/launchctl", ["kickstart", "-k", target]) != 0 {
-            throw DaemonClientError.unavailable("macOS could not start the Key Session helper.")
-        }
     }
 
     private struct BundledDaemon {
