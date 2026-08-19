@@ -20,6 +20,8 @@ public struct ProfileManagementSession: Identifiable, Sendable {
 public final class AppModel {
     public private(set) var snapshot: StatusSnapshot?
     public private(set) var doctorReport: DoctorReport?
+    public private(set) var agentConnectionsReport: AgentConnectionsReport?
+    public private(set) var agentConnectionsError: String?
     public private(set) var lifecycleState: DaemonLifecycleState = .connecting
     public private(set) var lastRefreshedAt: Date?
     public private(set) var isWorking = false
@@ -28,10 +30,14 @@ public final class AppModel {
     public var showsNewProfile = false
     public var errorMessage: String?
     public private(set) var authorizingProfileName: String?
+    public private(set) var repairingAgentHosts: Set<String> = []
 
     @ObservationIgnored private let lifecycle = DaemonLifecycleController()
     @ObservationIgnored private var client: DaemonClient?
     @ObservationIgnored private var pollingTask: Task<Void, Never>?
+    @ObservationIgnored private let preferences = UserDefaults.standard
+
+    private static let suggestedAgentSetupKey = "hasSuggestedAgentSetup"
 
     public init() {}
 
@@ -59,6 +65,19 @@ public final class AppModel {
             snapshot = try await connected.snapshot()
             lifecycleState = .connected
             lastRefreshedAt = Date()
+            if agentConnectionsReport == nil {
+                do {
+                    agentConnectionsReport = try await connected.agentConnections()
+                    agentConnectionsError = nil
+                    if agentConnectionsReport?.connections.contains(where: \.canRepair) == true,
+                       !preferences.bool(forKey: Self.suggestedAgentSetupKey) {
+                        selection = .doctor
+                        preferences.set(true, forKey: Self.suggestedAgentSetupKey)
+                    }
+                } catch {
+                    agentConnectionsError = String(describing: error)
+                }
+            }
         } catch {
             lifecycleState = .unavailable(String(describing: error))
             if showErrors { errorMessage = String(describing: error) }
@@ -135,8 +154,40 @@ public final class AppModel {
         do {
             let client = try await requireClient()
             doctorReport = try await client.doctor()
+            do {
+                agentConnectionsReport = try await client.agentConnections()
+                agentConnectionsError = nil
+            } catch {
+                agentConnectionsError = String(describing: error)
+            }
             await refresh(showErrors: false)
         } catch { errorMessage = String(describing: error) }
+    }
+
+    public func repairAgentConnection(_ host: String) async {
+        guard !repairingAgentHosts.contains(host) else { return }
+        repairingAgentHosts.insert(host)
+        defer { repairingAgentHosts.remove(host) }
+        do {
+            let client = try await requireClient()
+            agentConnectionsReport = try await client.repairAgentConnections(host: host)
+            agentConnectionsError = nil
+        } catch {
+            errorMessage = String(describing: error)
+        }
+    }
+
+    public func repairAllAgentConnections() async {
+        guard repairingAgentHosts.isEmpty else { return }
+        repairingAgentHosts = Set(agentConnectionsReport?.connections.filter(\.canRepair).map(\.host) ?? [])
+        defer { repairingAgentHosts.removeAll() }
+        do {
+            let client = try await requireClient()
+            agentConnectionsReport = try await client.repairAgentConnections()
+            agentConnectionsError = nil
+        } catch {
+            errorMessage = String(describing: error)
+        }
     }
 
     public func repair() async {

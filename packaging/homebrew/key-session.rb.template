@@ -1,0 +1,37 @@
+cask "key-session" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/theronburger/key-session/releases/download/v#{version}/key-session_#{version}_macos_universal.zip"
+  name "Key Session"
+  desc "Human-approved, consumer-scoped access to macOS Keychain secrets"
+  homepage "https://github.com/theronburger/key-session"
+
+  auto_updates true
+  depends_on macos: ">= :sonoma"
+
+  app "Key Session.app"
+  binary "#{appdir}/Key Session.app/Contents/MacOS/key-session"
+
+  uninstall quit: "com.theronburger.key-session",
+            launchctl: "com.theronburger.key-session.daemon"
+
+  zap trash: [
+    "~/Library/Application Support/key-session",
+    "~/Library/LaunchAgents/com.theronburger.key-session.daemon.plist",
+    "~/Library/Preferences/com.theronburger.key-session.plist",
+  ]
+
+  caveats <<~EOS
+    Key Session is self-signed because the project does not currently have an
+    Apple Developer identity. Install with Homebrew's explicit Gatekeeper bypass:
+
+      brew install --cask --no-quarantine theronburger/tap/key-session
+
+    Uninstall stops the app and Key Session daemon. Remove the MCP registrations
+    too, so agents do not retain a path to the deleted app:
+
+      codex mcp remove key-session
+      claude mcp remove key-session --scope user
+  EOS
+end

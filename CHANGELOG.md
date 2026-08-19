@@ -4,6 +4,22 @@ All notable changes are documented here. The project follows [Semantic Versionin
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-08-19
+
+### Added
+
+- Automatic discovery and one-click setup for installed Codex and Claude Code clients.
+- Daemon-owned MCP registration through each agent's official CLI, with exact-path validation and rollback on failure.
+- Bundled `using-keys` skills for Codex and Claude Code, installed and kept current without cloning the repository.
+- Sparkle 2 update checks and in-app installation secured by a dedicated Ed25519 release key.
+- A Homebrew Cask release path for one-command installation of the app and CLI.
+
+### Changed
+
+- Connection Doctor now reports MCP and skill health independently for every detected agent and can repair one or all connections.
+- First launch routes incomplete agent setup to Connection Doctor.
+- Release artifacts use a persistent self-signed certificate because the project has no Apple Developer identity; Homebrew installation therefore uses an explicit `--no-quarantine` acknowledgement.
+
 ## [v0.4.0] - 2026-08-19
 
 ### Added

@@ -26,17 +26,21 @@ Every agent task gets an ephemeral consumer capability. Its leases are isolated 
 
 ## Install
 
-Download the universal, Developer ID-signed, notarized archive from [GitHub Releases](https://github.com/theronburger/key-session/releases/latest), then install the app:
+Install the universal app and CLI with Homebrew, then open it:
 
 ```bash
-ditto -x -k key-session_*_macos_universal.zip .
-mv "Key Session.app" "$HOME/Applications/"
-ln -s "$HOME/Applications/Key Session.app/Contents/MacOS/key-session" "$HOME/.local/bin/key-session"
-open "$HOME/Applications/Key Session.app"
-key-session doctor
+brew install --cask --no-quarantine theronburger/tap/key-session && open -a "Key Session"
 ```
 
-The native menu-bar app installs and supervises the per-user access daemon. Its command center surfaces consumer sessions and their leases, gated profile management, a metadata-only activity journal, and Connection Doctor. Quitting the frontend does not revoke consumers or stop the daemon.
+The project does not currently have an Apple Developer identity, so releases use a persistent self-signed release certificate rather than Apple notarization. `--no-quarantine` is the explicit Gatekeeper acknowledgement for that limitation; the stable certificate preserves Keychain ACL identity across releases, and the app independently verifies every in-app update with its dedicated Ed25519 key.
+
+On first launch, Key Session discovers installed Codex and Claude Code clients and opens Connection Doctor when setup is incomplete. **Connect Detected Agents** installs the bundled `using-keys` skill and registers the MCP server through each agent's own CLI. No repository checkout or hand-edited configuration is required.
+
+Agent setup currently targets the standard `~/.codex` and Claude Code configuration locations. Custom `CODEX_HOME` and `CLAUDE_CONFIG_DIR` roots are not auto-repaired in this release.
+
+The native menu-bar app installs and supervises the per-user access daemon. Its command center surfaces consumer sessions and their leases, gated profile management, a metadata-only activity journal, agent connections, and Connection Doctor. Quitting the frontend does not revoke consumers or stop the daemon.
+
+The same universal archive remains available from [GitHub Releases](https://github.com/theronburger/key-session/releases/latest) for manual installation.
 
 To build from source instead:
 
@@ -95,27 +99,11 @@ Run `key-session help` or `key-session <command> --help` for complete examples. 
 
 `key-session mcp` exposes an agent-appropriate stdio MCP server. The first `request_key_session` call returns a consumer capability and lease ID. The task passes both to later status, execution, and revocation calls; the MCP configuration never contains a shared credential. Secret setup and deletion remain human-facing operations.
 
-```json
-{
-  "mcpServers": {
-    "key-session": {
-      "command": "key-session",
-      "args": ["mcp"]
-    }
-  }
-}
-```
+Connection Doctor configures this automatically for detected agents. `key-session connect` performs the same repair from the terminal; pass `codex` or `claude` to target one host.
 
 ## Agent skill
 
-The repository includes a ready-to-install Codex skill that enforces one consumer per task, capability hygiene, exact-lease execution, and safe cleanup:
-
-```bash
-mkdir -p "$HOME/.codex/skills"
-cp -R skills/using-keys "$HOME/.codex/skills/using-keys"
-```
-
-Invoke it explicitly with `$using-keys`, or let Codex load it automatically whenever a task mentions key-session, a key profile, or macOS Keychain access. The skill includes extra safeguards for database work and environment-variable mapping without exposing credentials.
+Every release bundles the `using-keys` skill. Connection Doctor installs it for Codex and Claude Code alongside the MCP connection and updates it when the app ships a newer version. Invoke it explicitly with `$using-keys`, or let the agent load it automatically whenever a task mentions key-session, a key profile, or macOS Keychain access.
 
 ## Architecture
 
@@ -127,9 +115,21 @@ Lease and execution APIs never return secrets. Human profile management is an ex
 
 ## Updates
 
-Interactive, non-secret commands check the official GitHub releases feed at most once every 24 hours. The request identifies the installed version in its user agent; no profile, consumer, or lease data is sent. Checks have a two-second timeout, failures stay silent, and the cache contains only the latest public version, release URL, and check time. Update checks never run for `grant`, `exec`, `setup`, daemon or MCP processes, JSON output, CI, or redirected output.
+The native app checks its signed Sparkle feed once per day. **Check for Updates…** in the app menu or Settings downloads, verifies, installs, and relaunches an available version without returning to Homebrew. Automatic checks can be disabled in Settings. No profile, consumer, lease, or system-profile data is sent.
 
-Set `KEY_SESSION_NO_UPDATE_CHECK=1` to disable automatic checks. `key-session update --force` always performs an explicit refresh. The application reports updates but deliberately does not replace its own security-sensitive executable.
+Interactive, non-secret CLI commands also check the official GitHub releases feed at most once every 24 hours. The request identifies only the installed version in its user agent. Checks have a two-second timeout, failures stay silent, and the cache contains only the latest public version, release URL, and check time. Update checks never run for `grant`, `exec`, `setup`, daemon or MCP processes, JSON output, CI, or redirected output.
+
+Set `KEY_SESSION_NO_UPDATE_CHECK=1` to disable automatic CLI checks. `key-session update --force` always performs an explicit CLI refresh.
+
+Before uninstalling, remove the MCP registration from each connected agent so it does not retain a path to the deleted app. Homebrew stops both the app and daemon during uninstall:
+
+```bash
+codex mcp remove key-session
+claude mcp remove key-session --scope user
+brew uninstall --cask key-session
+```
+
+The copied `using-keys` skill is intentionally left behind during uninstall; remove it from the agent's skills directory if it is no longer wanted. While Key Session remains installed, an explicit Connection Doctor repair replaces that managed skill tree with the bundled release version, including any local edits inside it.
 
 ## Security
 
@@ -145,4 +145,4 @@ make app
 make release-dry-run
 ```
 
-CI runs on GitHub-hosted macOS 26 runners with Swift 6.2 or newer. It runs race detection, linting, `govulncheck`, CodeQL, and a universal packaging dry run for every pull request and change to `main`. Tagged releases add Developer ID signing, Apple notarization, CycloneDX SBOMs, SHA-256 checksums, and GitHub build-provenance attestations. See [CONTRIBUTING.md](CONTRIBUTING.md) and [the release runbook](docs/RELEASING.md).
+CI runs on GitHub-hosted macOS 26 runners with Swift 6.2 or newer. It runs race detection, linting, `govulncheck`, CodeQL, and a universal packaging dry run for every pull request and change to `main`. Tagged releases add Ed25519-signed Sparkle updates, CycloneDX SBOMs, SHA-256 checksums, GitHub build-provenance attestations, and an automatic Homebrew tap update. See [CONTRIBUTING.md](CONTRIBUTING.md) and [the release runbook](docs/RELEASING.md).

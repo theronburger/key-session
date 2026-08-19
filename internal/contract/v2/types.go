@@ -31,7 +31,6 @@ type Profile struct {
 	Name                string `json:"name"`
 	EnvironmentVariable string `json:"environment_variable"`
 	DefaultLeaseSeconds int64  `json:"default_lease_seconds"`
-	IsDefault           bool   `json:"is_default"`
 }
 
 type Lease struct {
@@ -133,10 +132,6 @@ type ProfileManagementRequest struct {
 	ManagementToken string `json:"management_token"`
 }
 
-type DefaultProfileRequest struct {
-	Name string `json:"name"`
-}
-
 type ExecRequest struct {
 	ConsumerToken    string   `json:"consumer_token"`
 	LeaseID          string   `json:"lease_id"`
@@ -160,6 +155,24 @@ type DoctorCheck struct {
 type DoctorReport struct {
 	Healthy bool          `json:"healthy"`
 	Checks  []DoctorCheck `json:"checks"`
+}
+
+type AgentConnection struct {
+	Host        string `json:"host"`
+	DisplayName string `json:"display_name"`
+	State       string `json:"state"`
+	MCPState    string `json:"mcp_state"`
+	SkillState  string `json:"skill_state"`
+	Detail      string `json:"detail"`
+	CanRepair   bool   `json:"can_repair"`
+}
+
+type AgentConnectionsReport struct {
+	Connections []AgentConnection `json:"connections"`
+}
+
+type AgentConnectionRepairRequest struct {
+	Host string `json:"host,omitempty"`
 }
 
 type ErrorEnvelope struct {

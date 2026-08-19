@@ -105,7 +105,6 @@ func (service *Service) Snapshot() (contractv2.Snapshot, error) {
 		profiles = append(profiles, contractv2.Profile{
 			Name: name, EnvironmentVariable: profile.EnvironmentVariable,
 			DefaultLeaseSeconds: profile.DefaultLeaseSeconds,
-			IsDefault:           name == configuration.DefaultProfile,
 		})
 	}
 	consumers := make([]contractv2.Consumer, 0, len(service.consumers))
@@ -375,9 +374,6 @@ func (service *Service) StoreProfile(request contractv2.ProfileRequest) error {
 		EnvironmentVariable: request.EnvironmentVariable,
 		DefaultLeaseSeconds: request.DefaultLeaseSeconds,
 	}
-	if configuration.DefaultProfile == "" {
-		configuration.DefaultProfile = request.Name
-	}
 	if err := service.config.Save(configuration); err != nil {
 		return err
 	}
@@ -464,13 +460,6 @@ func (service *Service) DeleteProfile(name, managementToken string) error {
 		return fmt.Errorf("delete profile %q: %w", name, err)
 	}
 	delete(configuration.Profiles, name)
-	if configuration.DefaultProfile == name {
-		configuration.DefaultProfile = ""
-		remaining := configuration.SortedProfileNames()
-		if len(remaining) > 0 {
-			configuration.DefaultProfile = remaining[0]
-		}
-	}
 	if err := service.config.Save(configuration); err != nil {
 		return err
 	}
@@ -512,24 +501,6 @@ func (service *Service) authorizeProfileManagement(name, reason string) ([]byte,
 		return nil, fmt.Errorf("authorize management for profile %q: %w", name, err)
 	}
 	return secret, nil
-}
-
-func (service *Service) SetDefaultProfile(name string) error {
-	configuration, err := service.config.Load()
-	if err != nil {
-		return err
-	}
-	if _, found := configuration.Profiles[name]; !found {
-		return fmt.Errorf("profile %q is not configured", name)
-	}
-	configuration.DefaultProfile = name
-	if err := service.config.Save(configuration); err != nil {
-		return err
-	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	service.revision++
-	return nil
 }
 
 func (service *Service) Doctor() contractv2.DoctorReport {

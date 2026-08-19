@@ -8,7 +8,6 @@ import (
 func TestStoreRoundTrip(t *testing.T) {
 	store := Store{Path: filepath.Join(t.TempDir(), "nested", "config.json")}
 	expected := Config{
-		DefaultProfile: "production-read-only",
 		Profiles: map[string]Profile{
 			"production-read-only": {EnvironmentVariable: "MONGODB_URI", DefaultLeaseSeconds: 3600},
 		},
@@ -20,13 +19,11 @@ func TestStoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.DefaultProfile != expected.DefaultProfile {
-		t.Fatalf("default profile = %q", loaded.DefaultProfile)
+	profile := loaded.Profiles["production-read-only"]
+	if profile.DefaultLeaseSeconds != 3600 {
+		t.Fatalf("lease = %d", profile.DefaultLeaseSeconds)
 	}
-	if loaded.Profiles[expected.DefaultProfile].DefaultLeaseSeconds != 3600 {
-		t.Fatalf("lease = %d", loaded.Profiles[expected.DefaultProfile].DefaultLeaseSeconds)
-	}
-	if loaded.Profiles[expected.DefaultProfile].EnvironmentVariable != "MONGODB_URI" {
-		t.Fatalf("environment variable = %q", loaded.Profiles[expected.DefaultProfile].EnvironmentVariable)
+	if profile.EnvironmentVariable != "MONGODB_URI" {
+		t.Fatalf("environment variable = %q", profile.EnvironmentVariable)
 	}
 }

@@ -23,7 +23,6 @@ public struct KeyProfile: Decodable, Identifiable, Hashable, Sendable {
     public let name: String
     public let environmentVariable: String
     public let defaultLeaseSeconds: Int
-    public let isDefault: Bool
 }
 
 public struct KeyLease: Decodable, Identifiable, Sendable, Equatable {
@@ -76,6 +75,29 @@ public struct DoctorCheck: Decodable, Identifiable, Sendable {
 public struct DoctorReport: Decodable, Sendable {
     public let healthy: Bool
     public let checks: [DoctorCheck]
+}
+
+public struct AgentConnection: Decodable, Identifiable, Sendable, Equatable {
+    public var id: String { host }
+    public let host: String
+    public let displayName: String
+    public let state: String
+    public let mcpState: String
+    public let skillState: String
+    public let detail: String
+    public let canRepair: Bool
+}
+
+public struct AgentConnectionsReport: Decodable, Sendable, Equatable {
+    public let connections: [AgentConnection]
+}
+
+public struct AgentConnectionRepairRequest: Encodable, Sendable {
+    public let host: String
+
+    public init(host: String = "") {
+        self.host = host
+    }
 }
 
 public struct AdminRevokeRequest: Encodable, Sendable {

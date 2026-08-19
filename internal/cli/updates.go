@@ -100,7 +100,7 @@ func automaticUpdateCheckAllowed(arguments []string, standardErrorIsTerminal boo
 		return true
 	}
 	switch arguments[0] {
-	case "_daemon", "mcp", "exec", "grant", "setup", "update":
+	case "_daemon", "mcp", "exec", "grant", "setup", "update", "connect":
 		return false
 	default:
 		return true
