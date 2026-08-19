@@ -4,6 +4,10 @@ All notable changes are documented here. The project follows [Semantic Versionin
 
 ## [Unreleased]
 
+### Fixed
+
+- Homebrew installation instructions now use the supported, app-scoped quarantine removal flow after Homebrew removed `--no-quarantine`.
+
 ## [v0.5.0] - 2026-08-19
 
 ### Added
@@ -18,7 +22,7 @@ All notable changes are documented here. The project follows [Semantic Versionin
 
 - Connection Doctor now reports MCP and skill health independently for every detected agent and can repair one or all connections.
 - First launch routes incomplete agent setup to Connection Doctor.
-- Release artifacts use a persistent self-signed certificate because the project has no Apple Developer identity; Homebrew installation therefore uses an explicit `--no-quarantine` acknowledgement.
+- Release artifacts use a persistent self-signed certificate because the project has no Apple Developer identity; installation therefore requires an explicit, app-scoped Gatekeeper acknowledgement.
 
 ## [v0.4.0] - 2026-08-19
 

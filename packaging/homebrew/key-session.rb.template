@@ -24,11 +24,13 @@ cask "key-session" do
 
   caveats <<~EOS
     Key Session is self-signed because the project does not currently have an
-    Apple Developer identity. Install with Homebrew's explicit Gatekeeper bypass:
+    Apple Developer identity. After installing, explicitly remove Gatekeeper
+    quarantine from only the Key Session app:
 
       brew tap theronburger/tap
       brew trust --cask theronburger/tap/key-session
-      brew install --cask --no-quarantine key-session
+      brew install --cask key-session
+      xattr -dr com.apple.quarantine "/Applications/Key Session.app"
 
     Uninstall stops the app and Key Session daemon. Remove the MCP registrations
     too, so agents do not retain a path to the deleted app:

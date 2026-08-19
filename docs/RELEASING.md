@@ -14,7 +14,7 @@ The matching public key is committed as `SUPublicEDKey` in `packaging/Info.plist
 
 The Homebrew deploy key is intentionally disposable and scoped to the tap repository; never substitute a broad personal token. The protected environment is the mandatory human gate before any publishing secret becomes available to the job.
 
-The project currently has no Apple Developer identity. Release bundles use one persistent self-signed certificate and cannot be notarized, so Homebrew users install with the explicit `--no-quarantine` flag. The persistent certificate supplies a stable executable identity for Keychain ACLs across releases; Sparkle separately authenticates update archives and the update feed with Ed25519 before extraction.
+The project currently has no Apple Developer identity. Release bundles use one persistent self-signed certificate and cannot be notarized. Homebrew removed its `--no-quarantine` option, so users explicitly remove quarantine from the installed Key Session app after Homebrew verifies and installs the pinned archive. The persistent certificate supplies a stable executable identity for Keychain ACLs across releases; Sparkle separately authenticates update archives and the update feed with Ed25519 before extraction.
 
 ## Publishing-key ownership
 
@@ -56,5 +56,8 @@ The tag workflow validates version alignment, reruns checks, builds Intel and Ap
 shasum -a 256 -c checksums.txt
 codesign --verify --deep --strict --verbose=2 "Key Session.app"
 gh attestation verify key-session_X.Y.Z_macos_universal.zip --repo theronburger/key-session
-brew install --cask --no-quarantine theronburger/tap/key-session
+brew tap theronburger/tap
+brew trust --cask theronburger/tap/key-session
+brew install --cask key-session
+xattr -dr com.apple.quarantine "/Applications/Key Session.app"
 ```
