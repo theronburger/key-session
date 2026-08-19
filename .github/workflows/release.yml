@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Sign, notarize, and publish
+    runs-on: macos-26
+    environment: release
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Validate release version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          expected_tag="v$(tr -d '[:space:]' < VERSION)"
+          test "$RELEASE_TAG" = "$expected_tag"
+          grep -Fq "## [$RELEASE_TAG]" CHANGELOG.md
+      - name: Run tests
+        run: scripts/ci.sh
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          test -n "$APPLE_CERTIFICATE_BASE64"
+          test -n "$APPLE_CERTIFICATE_PASSWORD"
+          test -n "$APPLE_SIGNING_IDENTITY"
+          signing_keychain="$RUNNER_TEMP/key-session-signing.keychain-db"
+          signing_password=$(openssl rand -hex 24)
+          certificate_path="$RUNNER_TEMP/developer-id.p12"
+          printf '%s' "$APPLE_CERTIFICATE_BASE64" | /usr/bin/base64 -D > "$certificate_path"
+          security create-keychain -p "$signing_password" "$signing_keychain"
+          security set-keychain-settings -lut 21600 "$signing_keychain"
+          security unlock-keychain -p "$signing_password" "$signing_keychain"
+          security import "$certificate_path" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$signing_keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$signing_password" "$signing_keychain"
+          security list-keychains -d user -s "$signing_keychain"
+          echo "KEY_SESSION_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
+      - name: Install SBOM generator
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.10.0
+      - name: Build signed universal release
+        run: scripts/build-release.sh dist
+      - name: Notarize and staple
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$APPLE_ID"
+          test -n "$APPLE_APP_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+          archive="dist/key-session_$(tr -d '[:space:]' < VERSION)_macos_universal.zip"
+          xcrun notarytool submit "$archive" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "dist/Key Session.app"
+          rm "$archive"
+          ditto -c -k --sequesterRsrc --keepParent "dist/Key Session.app" "$archive"
+          (
+            cd dist
+            shasum -a 256 "$(basename "$archive")" *.sbom.cdx.json > checksums.txt
+          )
+          xcrun stapler validate "dist/Key Session.app"
+          spctl --assess --type execute --verbose=4 "dist/Key Session.app"
+      - name: Attest release artifacts
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: |
+            dist/*.zip
+            dist/*.sbom.cdx.json
+            dist/checksums.txt
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.zip \
+            dist/*.sbom.cdx.json \
+            dist/checksums.txt \
+            --verify-tag \
+            --generate-notes \
+            --title "Key Session $(tr -d '[:space:]' < VERSION)"

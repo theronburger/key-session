@@ -29,15 +29,22 @@ func Store(account string, secret []byte) error {
 	return bridgeError(status, errorMessage)
 }
 
-func Read(account string) ([]byte, error) {
+func Read(account string, approvalMessage string) ([]byte, error) {
+	return read(account, approvalMessage)
+}
+
+func read(account string, approvalMessage string) ([]byte, error) {
 	accountCString := C.CString(account)
 	defer C.free(unsafe.Pointer(accountCString))
+	approvalMessageCString := C.CString(approvalMessage)
+	defer C.free(unsafe.Pointer(approvalMessageCString))
 
 	var secretPointer unsafe.Pointer
 	var secretLength C.size_t
 	var errorMessage *C.char
 	status := C.key_session_keychain_read(
 		accountCString,
+		approvalMessageCString,
 		&secretPointer,
 		&secretLength,
 		&errorMessage,

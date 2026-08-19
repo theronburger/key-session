@@ -1,14 +1,20 @@
 #import <Foundation/Foundation.h>
+#import <LocalAuthentication/LocalAuthentication.h>
 #import <Security/Security.h>
 #import <Security/SecAccess.h>
-#import <Security/SecACL.h>
+#import <Security/SecTrustedApplication.h>
 
 #include <stdlib.h>
 #include <string.h>
 
 #include "keychain.h"
 
-static NSString *const serviceName = @"com.theronburger.key-session";
+// The macOS file-based Keychain ACL trusts the signed Key Session executables;
+// the daemon still completes an explicit Touch ID gate before every read.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
+static NSString *const serviceName = @"com.theronburger.key-session.protected";
 
 static NSMutableDictionary *baseQuery(NSString *account) {
     return [@{
@@ -37,63 +43,114 @@ static void setTextError(char **errorMessage, NSString *message) {
     }
 }
 
-static SecAccessRef createPromptingAccess(NSString *account, char **errorMessage) {
-    // Data-protection Keychain access requires a provisioned app wrapper; a standalone CLI must use the login Keychain ACL API.
-    NSString *description = [NSString stringWithFormat:@"key-session profile %@", account];
-    CFArrayRef noTrustedApplications = CFArrayCreate(
-        NULL,
-        NULL,
-        0,
-        &kCFTypeArrayCallBacks
-    );
-    if (noTrustedApplications == NULL) {
-        setTextError(errorMessage, @"could not create an empty Keychain trust list");
+static int authenticateUserPresence(NSString *account, NSString *reason, char **errorMessage) {
+    LAContext *context = [[LAContext alloc] init];
+    context.localizedFallbackTitle = @"";
+    NSError *policyError = nil;
+    if (![context canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&policyError]) {
+        setTextError(errorMessage, policyError.localizedDescription ?: @"Touch ID is unavailable or not enrolled");
+        [context release];
+        return 1;
+    }
+
+    dispatch_semaphore_t completion = dispatch_semaphore_create(0);
+    __block BOOL approved = NO;
+    __block NSString *failureMessage = nil;
+    NSString *localizedReason = reason.length > 0
+        ? reason
+        : [NSString stringWithFormat:@"Reveal the Key Session profile %@.", account];
+    [context evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics localizedReason:localizedReason reply:^(BOOL success, NSError *authenticationError) {
+        approved = success;
+        if (authenticationError != nil) {
+            failureMessage = [authenticationError.localizedDescription copy];
+        }
+        dispatch_semaphore_signal(completion);
+    }];
+    dispatch_semaphore_wait(completion, DISPATCH_TIME_FOREVER);
+    [context invalidate];
+    [context release];
+
+    if (!approved) {
+        setTextError(errorMessage, failureMessage ?: @"Touch ID authentication was denied");
+        [failureMessage release];
+        return 1;
+    }
+    [failureMessage release];
+    return 0;
+}
+
+static SecAccessRef createTrustedAccess(NSString *account, char **errorMessage) {
+    NSMutableArray *trustedApplications = [NSMutableArray array];
+    SecTrustedApplicationRef currentApplication = NULL;
+    OSStatus currentStatus = SecTrustedApplicationCreateFromPath(NULL, &currentApplication);
+    if (currentStatus != errSecSuccess || currentApplication == NULL) {
+        setErrorMessage(errorMessage, currentStatus);
         return NULL;
+    }
+    [trustedApplications addObject:(__bridge id)currentApplication];
+    CFRelease(currentApplication);
+
+    NSString *installedHelper = [NSHomeDirectory() stringByAppendingPathComponent:
+        @"Library/Application Support/key-session/Key Session Helper.app/Contents/MacOS/KeySessionDaemon"];
+    if ([[NSFileManager defaultManager] isExecutableFileAtPath:installedHelper]) {
+        SecTrustedApplicationRef helperApplication = NULL;
+        OSStatus helperStatus = SecTrustedApplicationCreateFromPath(
+            [installedHelper fileSystemRepresentation],
+            &helperApplication
+        );
+        if (helperStatus == errSecSuccess && helperApplication != NULL) {
+            [trustedApplications addObject:(__bridge id)helperApplication];
+            CFRelease(helperApplication);
+        }
     }
 
     SecAccessRef access = NULL;
+    NSString *description = [NSString stringWithFormat:@"Key Session profile %@", account];
     OSStatus accessStatus = SecAccessCreate(
         (__bridge CFStringRef)description,
-        noTrustedApplications,
+        (__bridge CFArrayRef)trustedApplications,
         &access
     );
     if (accessStatus != errSecSuccess) {
-        CFRelease(noTrustedApplications);
         setErrorMessage(errorMessage, accessStatus);
         return NULL;
     }
-
-    CFArrayRef restrictedACLs = SecAccessCopyMatchingACLList(access, kSecACLAuthorizationDecrypt);
-    if (restrictedACLs == NULL || CFArrayGetCount(restrictedACLs) == 0) {
-        if (restrictedACLs != NULL) {
-            CFRelease(restrictedACLs);
-        }
-        CFRelease(noTrustedApplications);
-        CFRelease(access);
-        setTextError(errorMessage, @"could not locate the Keychain password access rule");
-        return NULL;
-    }
-
-    for (CFIndex index = 0; index < CFArrayGetCount(restrictedACLs); index++) {
-        SecACLRef acl = (SecACLRef)CFArrayGetValueAtIndex(restrictedACLs, index);
-        OSStatus aclStatus = SecACLSetContents(
-            acl,
-            noTrustedApplications,
-            (__bridge CFStringRef)description,
-            kSecKeychainPromptRequirePassphase
-        );
-        if (aclStatus != errSecSuccess) {
-            CFRelease(restrictedACLs);
-            CFRelease(noTrustedApplications);
-            CFRelease(access);
-            setErrorMessage(errorMessage, aclStatus);
-            return NULL;
-        }
-    }
-
-    CFRelease(restrictedACLs);
-    CFRelease(noTrustedApplications);
     return access;
+}
+
+static OSStatus storeProtectedSecret(NSString *account, NSData *data, char **errorMessage) {
+    SecAccessRef access = createTrustedAccess(account, errorMessage);
+    if (access == NULL) {
+        return errSecParam;
+    }
+
+    NSMutableDictionary *addQuery = baseQuery(account);
+    addQuery[(__bridge id)kSecAttrAccess] = (__bridge id)access;
+    addQuery[(__bridge id)kSecValueData] = data;
+    OSStatus status = SecItemAdd((__bridge CFDictionaryRef)addQuery, NULL);
+    [addQuery release];
+
+    if (status == errSecDuplicateItem) {
+        NSMutableDictionary *deleteQuery = baseQuery(account);
+        OSStatus deleteStatus = SecItemDelete((__bridge CFDictionaryRef)deleteQuery);
+        [deleteQuery release];
+        if (deleteStatus != errSecSuccess && deleteStatus != errSecItemNotFound) {
+            CFRelease(access);
+            setErrorMessage(errorMessage, deleteStatus);
+            return deleteStatus;
+        }
+
+        addQuery = baseQuery(account);
+        addQuery[(__bridge id)kSecAttrAccess] = (__bridge id)access;
+        addQuery[(__bridge id)kSecValueData] = data;
+        status = SecItemAdd((__bridge CFDictionaryRef)addQuery, NULL);
+        [addQuery release];
+    }
+    CFRelease(access);
+    if (status != errSecSuccess) {
+        setErrorMessage(errorMessage, status);
+    }
+    return status;
 }
 
 int key_session_keychain_store(const char *accountValue, const void *secret, size_t secretLength, char **errorMessage) {
@@ -104,46 +161,24 @@ int key_session_keychain_store(const char *accountValue, const void *secret, siz
             return 1;
         }
 
-        SecAccessRef access = createPromptingAccess(account, errorMessage);
-        if (access == NULL) {
+        NSData *data = [NSData dataWithBytes:secret length:secretLength];
+        if (storeProtectedSecret(account, data, errorMessage) != errSecSuccess) {
             return 1;
         }
 
-        NSMutableDictionary *addQuery = baseQuery(account);
-        addQuery[(__bridge id)kSecAttrAccess] = (__bridge id)access;
-        addQuery[(__bridge id)kSecValueData] = [NSData dataWithBytes:secret length:secretLength];
-        OSStatus addStatus = SecItemAdd((__bridge CFDictionaryRef)addQuery, NULL);
-        [addQuery release];
-        CFRelease(access);
-        if (addStatus == errSecDuplicateItem) {
-            NSMutableDictionary *query = baseQuery(account);
-            NSDictionary *changes = @{
-                (__bridge id)kSecValueData: [NSData dataWithBytes:secret length:secretLength],
-            };
-            OSStatus updateStatus = SecItemUpdate(
-                (__bridge CFDictionaryRef)query,
-                (__bridge CFDictionaryRef)changes
-            );
-            [query release];
-            if (updateStatus != errSecSuccess) {
-                setErrorMessage(errorMessage, updateStatus);
-                return 1;
-            }
-            return 0;
-        }
-        if (addStatus != errSecSuccess) {
-            setErrorMessage(errorMessage, addStatus);
-            return 1;
-        }
         return 0;
     }
 }
 
-int key_session_keychain_read(const char *accountValue, void **secret, size_t *secretLength, char **errorMessage) {
-    @autoreleasepool {
+static int readKeychainSecret(const char *accountValue, const char *approvalMessageValue, void **secret, size_t *secretLength, char **errorMessage) {
         NSString *account = [NSString stringWithUTF8String:accountValue];
-        if (account == nil || secret == NULL || secretLength == NULL) {
-            setTextError(errorMessage, @"invalid profile");
+        NSString *approvalMessage = [NSString stringWithUTF8String:approvalMessageValue];
+        if (account == nil || approvalMessage == nil || [approvalMessage length] == 0 || secret == NULL || secretLength == NULL) {
+            setTextError(errorMessage, @"invalid profile or approval message");
+            return 1;
+        }
+
+        if (authenticateUserPresence(account, approvalMessage, errorMessage) != 0) {
             return 1;
         }
 
@@ -154,6 +189,7 @@ int key_session_keychain_read(const char *accountValue, void **secret, size_t *s
         CFTypeRef result = NULL;
         OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
         [query release];
+
         if (status != errSecSuccess) {
             setErrorMessage(errorMessage, status);
             return 1;
@@ -170,6 +206,11 @@ int key_session_keychain_read(const char *accountValue, void **secret, size_t *s
         memcpy(*secret, [data bytes], *secretLength);
         CFRelease(result);
         return 0;
+}
+
+int key_session_keychain_read(const char *accountValue, const char *approvalMessageValue, void **secret, size_t *secretLength, char **errorMessage) {
+    @autoreleasepool {
+        return readKeychainSecret(accountValue, approvalMessageValue, secret, secretLength, errorMessage);
     }
 }
 
@@ -194,3 +235,5 @@ int key_session_keychain_delete(const char *accountValue, char **errorMessage) {
 void key_session_keychain_free(void *pointer) {
     free(pointer);
 }
+
+#pragma clang diagnostic pop

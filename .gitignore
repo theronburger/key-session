@@ -1,1 +1,4 @@
 /key-session
+.DS_Store
+/dist/
+/app/.build/

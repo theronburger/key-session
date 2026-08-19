@@ -4,29 +4,28 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/signal"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"github.com/theronburger/key-session/internal/config"
-	"github.com/theronburger/key-session/internal/keychain"
-	"github.com/theronburger/key-session/internal/session"
+	"github.com/theronburger/key-session/internal/apiclient"
+	"github.com/theronburger/key-session/internal/buildinfo"
+	contractv2 "github.com/theronburger/key-session/internal/contract/v2"
+	"github.com/theronburger/key-session/internal/daemon"
 )
 
 const (
-	defaultLease = time.Hour
-	minimumLease = time.Minute
-	maximumLease = 24 * time.Hour
-	version      = "0.1.1"
+	defaultLease              = time.Hour
+	minimumLease              = time.Minute
+	maximumLease              = 24 * time.Hour
+	maximumConsumerCharacters = 80
+	maximumReasonCharacters   = 240
+	consumerTokenEnvironment  = "KEY_SESSION_CONSUMER_TOKEN"
 )
 
 var (
@@ -45,7 +44,11 @@ func (err ExitError) Error() string {
 func Run(arguments []string) error {
 	root := newRootCommand()
 	root.SetArgs(arguments)
-	return root.Execute()
+	err := root.Execute()
+	if err == nil {
+		checkForUpdatesAutomatically(arguments)
+	}
+	return err
 }
 
 func newRootCommand() *cobra.Command {
@@ -53,7 +56,7 @@ func newRootCommand() *cobra.Command {
 		Use:           "key-session",
 		Short:         "Grant time-limited access to Keychain secrets",
 		Long:          "key-session stores named secrets in macOS Keychain and grants them to local programs through expiring, user-approved leases.",
-		Version:       version,
+		Version:       buildinfo.Current().Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Args:          cobra.NoArgs,
@@ -85,7 +88,10 @@ func newRootCommand() *cobra.Command {
 		newProfilesCommand(),
 		newRemoveProfileCommand(),
 		newVersionCommand(),
-		newBrokerCommand(),
+		newUpdateCommand(),
+		newDoctorCommand(),
+		newDaemonCommand(),
+		newMCPCommand(),
 	)
 	return root
 }
@@ -111,21 +117,28 @@ func newSetupCommand() *cobra.Command {
 
 func newGrantCommand() *cobra.Command {
 	var duration time.Duration
+	var consumer string
+	var consumerDuration time.Duration
+	var reason string
 	command := &cobra.Command{
 		Use:     "grant [profile]",
-		Short:   "Approve and start an expiring lease",
-		Long:    "Read a configured secret from macOS Keychain after user authentication and hold it in a private local broker until the lease expires or is revoked.",
-		Example: "  key-session grant\n  key-session grant production-read-only --duration 15m",
+		Short:   "Approve a consumer-scoped expiring lease",
+		Long:    "Create or reuse an ephemeral consumer capability, authenticate with Touch ID, and grant only that consumer a profile lease.",
+		Example: "  key-session grant production-read-only --consumer \"Codex: jira-mcp-relay\" --reason \"Verify DEED-123 records\" --duration 15m",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, arguments []string) error {
 			profileName := ""
 			if len(arguments) == 1 {
 				profileName = arguments[0]
 			}
-			return grantProfile(profileName, duration)
+			return grantProfile(profileName, consumer, reason, duration, consumerDuration)
 		},
 	}
 	command.Flags().DurationVar(&duration, "duration", 0, "override the profile's lease duration")
+	command.Flags().StringVar(&consumer, "consumer", "", "agent task or thread receiving a new consumer capability")
+	command.Flags().DurationVar(&consumerDuration, "consumer-duration", 0, "new consumer lifetime (default 24h; 1h to 7d)")
+	command.Flags().StringVar(&reason, "reason", "", "specific purpose for this lease (required)")
+	_ = command.MarkFlagRequired("reason")
 	return command
 }
 
@@ -146,33 +159,39 @@ func newStatusCommand() *cobra.Command {
 
 func newExecCommand() *cobra.Command {
 	var timeout time.Duration
+	var leaseID string
 	command := &cobra.Command{
 		Use:     "exec -- <program> [arguments...]",
-		Short:   "Run a program with the active secret injected",
-		Long:    "Ask the lease broker to run one program with the active profile's secret in its configured environment variable. The secret is redacted from captured output.",
-		Example: "  key-session exec -- api-client fetch /resource\n  key-session exec --timeout 2m -- mongosh --nodb --quiet --eval 'let uri=process.env.MONGODB_URI; delete process.env.MONGODB_URI; db=connect(uri); uri=undefined; db.runCommand({ping: 1})'",
+		Short:   "Run a program through one owned lease",
+		Long:    "Run one exact program with the selected consumer-owned lease. The secret is injected in memory and redacted from captured output.",
+		Example: "  KEY_SESSION_CONSUMER_TOKEN=... key-session exec --lease lease_... -- api-client fetch /resource",
 		Args:    cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			if command.ArgsLenAtDash() < 0 {
-				return fmt.Errorf("place -- before the child program; example: key-session exec -- my-command")
+				return fmt.Errorf("place -- before the child program; example: key-session exec --lease lease_... -- my-command")
 			}
-			return executeCommand(arguments, timeout)
+			return executeCommand(arguments, timeout, leaseID)
 		},
 	}
 	command.Flags().DurationVar(&timeout, "timeout", 5*time.Minute, "child command timeout (1s to 30m)")
+	command.Flags().StringVar(&leaseID, "lease", "", "exact approved lease ID (required)")
+	_ = command.MarkFlagRequired("lease")
 	return command
 }
 
 func newRevokeCommand() *cobra.Command {
-	return &cobra.Command{
+	var leaseID string
+	command := &cobra.Command{
 		Use:     "revoke",
-		Short:   "End the active lease immediately",
-		Example: "  key-session revoke",
+		Short:   "End one owned lease or the entire consumer",
+		Example: "  KEY_SESSION_CONSUMER_TOKEN=... key-session revoke --lease lease_...\n  KEY_SESSION_CONSUMER_TOKEN=... key-session revoke",
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return revokeLease()
+			return revokeLease(leaseID)
 		},
 	}
+	command.Flags().StringVar(&leaseID, "lease", "", "revoke one lease; omit to end the consumer and all its leases")
+	return command
 }
 
 func newProfilesCommand() *cobra.Command {
@@ -193,8 +212,8 @@ func newProfilesCommand() *cobra.Command {
 func newRemoveProfileCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove-profile [profile]",
-		Short: "Delete a profile from Keychain and local configuration",
-		Long:  "Delete the selected profile. When omitted, the default profile is removed. This also revokes any active lease.",
+		Short: "Open the human profile-removal flow",
+		Long:  "Profile removal is completed in Key Session.app through its Keychain-authorized human management flow.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, arguments []string) error {
 			profileName := ""
@@ -206,33 +225,15 @@ func newRemoveProfileCommand() *cobra.Command {
 	}
 }
 
-func newVersionCommand() *cobra.Command {
+func newDaemonCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Print the key-session version",
-		Args:  cobra.NoArgs,
-		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Println(version)
-		},
-	}
-}
-
-func newBrokerCommand() *cobra.Command {
-	var profileName string
-	var environmentVariable string
-	var expiresAt int64
-	command := &cobra.Command{
-		Use:    "_broker",
+		Use:    "_daemon",
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runBroker(profileName, environmentVariable, expiresAt)
+			return daemon.Run(context.Background())
 		},
 	}
-	command.Flags().StringVar(&profileName, "profile", "", "profile")
-	command.Flags().StringVar(&environmentVariable, "env", "", "environment variable")
-	command.Flags().Int64Var(&expiresAt, "expires-at", 0, "expiration time")
-	return command
 }
 
 func setupProfile(profileName string, environmentVariable string, duration time.Duration) error {
@@ -262,94 +263,127 @@ func setupProfile(profileName string, environmentVariable string, duration time.
 	if bytes.IndexByte(secret, 0) >= 0 {
 		return fmt.Errorf("environment-variable secrets cannot contain a NUL byte")
 	}
-	if err := keychain.Store(profileName, secret); err != nil {
-		return fmt.Errorf("store profile %q: %w", profileName, err)
-	}
-
-	store, err := config.DefaultStore()
+	client, err := apiclient.Connect(context.Background())
 	if err != nil {
 		return err
 	}
-	configuration, err := store.Load()
-	if err != nil {
+	if err := client.StoreProfile(context.Background(), contractv2.ProfileRequest{
+		Name: profileName, EnvironmentVariable: environmentVariable,
+		DefaultLeaseSeconds: int64(duration.Seconds()), Secret: string(secret),
+	}); err != nil {
 		return err
 	}
-	configuration.Profiles[profileName] = config.Profile{
-		EnvironmentVariable: environmentVariable,
-		DefaultLeaseSeconds: int64(duration.Seconds()),
-	}
-	configuration.DefaultProfile = profileName
-	if err := store.Save(configuration); err != nil {
+	if err := client.SetDefaultProfile(context.Background(), profileName); err != nil {
 		return err
 	}
 	fmt.Printf("Profile %q saved as the default with a %s lease.\n", profileName, friendlyDuration(duration))
 	return nil
 }
 
-func grantProfile(requestedProfile string, durationOverride time.Duration) error {
-	store, err := config.DefaultStore()
+func grantProfile(requestedProfile, consumerLabel, reason string, durationOverride, consumerDuration time.Duration) error {
+	reason = strings.TrimSpace(reason)
+	consumerLabel = strings.TrimSpace(consumerLabel)
+	if err := validatePromptField("reason", reason, maximumReasonCharacters); err != nil {
+		return err
+	}
+	if durationOverride != 0 {
+		if err := validateLease(durationOverride); err != nil {
+			return err
+		}
+	}
+	consumerToken := strings.TrimSpace(os.Getenv(consumerTokenEnvironment))
+	if consumerToken == "" {
+		if err := validatePromptField("consumer", consumerLabel, maximumConsumerCharacters); err != nil {
+			return fmt.Errorf("%w when %s is not set", err, consumerTokenEnvironment)
+		}
+		if consumerDuration != 0 && (consumerDuration < time.Hour || consumerDuration > 7*24*time.Hour) {
+			return fmt.Errorf("--consumer-duration must be between 1h and 7d")
+		}
+	} else if consumerLabel != "" || consumerDuration != 0 {
+		return fmt.Errorf("--consumer and --consumer-duration create a new consumer; omit them while %s is set", consumerTokenEnvironment)
+	}
+	client, err := apiclient.Connect(context.Background())
 	if err != nil {
 		return err
 	}
-	configuration, err := store.Load()
+	grant, err := client.Grant(context.Background(), contractv2.GrantRequest{
+		Profile: requestedProfile, ConsumerToken: consumerToken, ConsumerLabel: consumerLabel,
+		ConsumerDurationSeconds: int64(consumerDuration.Seconds()), Reason: reason,
+		DurationSeconds: int64(durationOverride.Seconds()),
+	})
 	if err != nil {
 		return err
 	}
-	profileName, profile, err := configuration.Resolve(requestedProfile)
-	if err != nil {
-		return err
+	if grant.ConsumerToken != "" {
+		fmt.Printf("Consumer %q created until %s.\n", grant.Consumer.Label, grant.Consumer.ExpiresAt.Format(time.RFC3339))
+		fmt.Printf("Consumer capability: %s\n", grant.ConsumerToken)
 	}
-	duration := durationOverride
-	if duration == 0 {
-		duration = time.Duration(profile.DefaultLeaseSeconds) * time.Second
-	}
-	if err := validateLease(duration); err != nil {
-		return err
-	}
-
-	secret, err := keychain.Read(profileName)
-	if err != nil {
-		return fmt.Errorf("read profile %q: %w", profileName, err)
-	}
-	defer clearBytes(secret)
-	status, err := session.Start(profileName, profile.EnvironmentVariable, duration, secret)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Profile %q granted as %s for %s.\n", status.Profile, status.EnvironmentVariable, friendlyDuration(time.Until(status.ExpiresAt)))
+	fmt.Printf("Lease %s grants profile %q as %s for %s.\n", grant.Lease.ID, grant.Lease.Profile, grant.Lease.EnvironmentVariable, friendlyDuration(time.Until(grant.Lease.ExpiresAt)))
 	return nil
 }
 
 func showStatus(outputJSON bool) error {
-	status, err := session.StatusNow()
-	if errors.Is(err, session.ErrInactive) {
-		if outputJSON {
-			return printJSON(map[string]any{"active": false})
+	client, err := apiclient.Connect(context.Background())
+	if err != nil {
+		return err
+	}
+	consumerToken := strings.TrimSpace(os.Getenv(consumerTokenEnvironment))
+	if consumerToken != "" {
+		status, err := client.ConsumerStatus(context.Background(), consumerToken)
+		if err != nil {
+			return err
 		}
-		fmt.Println("Key session: inactive")
+		if outputJSON {
+			return printJSON(map[string]any{"active": len(status.Consumer.Leases) > 0, "consumer": status.Consumer})
+		}
+		fmt.Printf("Consumer %q: %d active lease(s), expires in %s.\n", status.Consumer.Label, len(status.Consumer.Leases), friendlyDuration(time.Until(status.Consumer.ExpiresAt)))
+		for _, lease := range status.Consumer.Leases {
+			fmt.Printf("  %s: %s as %s, %s remaining — %s\n", lease.ID, lease.Profile, lease.EnvironmentVariable, friendlyDuration(time.Until(lease.ExpiresAt)), lease.Reason)
+		}
 		return nil
 	}
+	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
 		return err
 	}
 	if outputJSON {
-		return printJSON(map[string]any{
-			"active":               true,
-			"profile":              status.Profile,
-			"environment_variable": status.EnvironmentVariable,
-			"expires_at":           status.ExpiresAt.Format(time.RFC3339),
-			"remaining_seconds":    max(0, int(time.Until(status.ExpiresAt).Seconds())),
-		})
+		return printJSON(map[string]any{"consumers": snapshot.Consumers})
 	}
-	fmt.Printf("Key session: active (%s as %s, expires in %s)\n", status.Profile, status.EnvironmentVariable, friendlyDuration(time.Until(status.ExpiresAt)))
+	leaseCount := 0
+	for _, consumer := range snapshot.Consumers {
+		leaseCount += len(consumer.Leases)
+	}
+	if len(snapshot.Consumers) == 0 {
+		fmt.Println("Key Session: no active consumers.")
+		return nil
+	}
+	fmt.Printf("Key Session: %d consumer(s), %d active lease(s). Set %s to inspect one consumer.\n", len(snapshot.Consumers), leaseCount, consumerTokenEnvironment)
+	for _, consumer := range snapshot.Consumers {
+		fmt.Printf("  %s: %s, %d lease(s), expires in %s\n", consumer.ID, consumer.Label, len(consumer.Leases), friendlyDuration(time.Until(consumer.ExpiresAt)))
+	}
 	return nil
 }
 
-func executeCommand(arguments []string, timeout time.Duration) error {
+func executeCommand(arguments []string, timeout time.Duration, leaseID string) error {
 	if timeout < time.Second || timeout > 30*time.Minute {
 		return fmt.Errorf("exec timeout must be between 1s and 30m")
 	}
-	result, err := session.Execute(arguments, timeout)
+	client, err := apiclient.Connect(context.Background())
+	if err != nil {
+		return err
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	consumerToken, err := requireConsumerToken()
+	if err != nil {
+		return err
+	}
+	result, err := client.Execute(context.Background(), contractv2.ExecRequest{
+		ConsumerToken: consumerToken, LeaseID: strings.TrimSpace(leaseID),
+		Arguments: arguments, WorkingDirectory: workingDirectory, TimeoutSeconds: int(timeout.Seconds()),
+	})
 	if err != nil {
 		return err
 	}
@@ -371,23 +405,37 @@ func executeCommand(arguments []string, timeout time.Duration) error {
 	return nil
 }
 
-func revokeLease() error {
-	if err := session.Revoke(); errors.Is(err, session.ErrInactive) {
-		fmt.Println("Key session was already inactive.")
-		return nil
-	} else if err != nil {
+func revokeLease(leaseID string) error {
+	consumerToken, err := requireConsumerToken()
+	if err != nil {
 		return err
 	}
-	fmt.Println("Key session revoked.")
+	client, err := apiclient.Connect(context.Background())
+	if err != nil {
+		return err
+	}
+	revoked, err := client.Revoke(context.Background(), contractv2.RevokeRequest{ConsumerToken: consumerToken, LeaseID: strings.TrimSpace(leaseID)})
+	if err != nil {
+		return err
+	}
+	if !revoked {
+		fmt.Println("The lease or consumer was already inactive.")
+		return nil
+	}
+	if leaseID == "" {
+		fmt.Println("Consumer session and all of its leases revoked.")
+	} else {
+		fmt.Printf("Lease %s revoked.\n", leaseID)
+	}
 	return nil
 }
 
 func listProfiles(outputJSON bool) error {
-	store, err := config.DefaultStore()
+	client, err := apiclient.Connect(context.Background())
 	if err != nil {
 		return err
 	}
-	configuration, err := store.Load()
+	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
 		return err
 	}
@@ -398,87 +446,58 @@ func listProfiles(outputJSON bool) error {
 			EnvironmentVariable string `json:"environment_variable"`
 			LeaseSeconds        int64  `json:"lease_seconds"`
 		}
-		profiles := make([]profileOutput, 0, len(configuration.Profiles))
-		for _, profileName := range configuration.SortedProfileNames() {
-			profile := configuration.Profiles[profileName]
+		profiles := make([]profileOutput, 0, len(snapshot.Profiles))
+		for _, profile := range snapshot.Profiles {
 			profiles = append(profiles, profileOutput{
-				Name:                profileName,
-				Default:             profileName == configuration.DefaultProfile,
+				Name:                profile.Name,
+				Default:             profile.IsDefault,
 				EnvironmentVariable: profile.EnvironmentVariable,
 				LeaseSeconds:        profile.DefaultLeaseSeconds,
 			})
 		}
 		return printJSON(map[string]any{"profiles": profiles})
 	}
-	for _, profileName := range configuration.SortedProfileNames() {
-		profile := configuration.Profiles[profileName]
+	for _, profile := range snapshot.Profiles {
 		marker := " "
-		if profileName == configuration.DefaultProfile {
+		if profile.IsDefault {
 			marker = "*"
 		}
-		fmt.Printf("%s %s -> %s (%s)\n", marker, profileName, profile.EnvironmentVariable, friendlyDuration(time.Duration(profile.DefaultLeaseSeconds)*time.Second))
+		fmt.Printf("%s %s -> %s (%s)\n", marker, profile.Name, profile.EnvironmentVariable, friendlyDuration(time.Duration(profile.DefaultLeaseSeconds)*time.Second))
 	}
 	return nil
 }
 
 func removeProfile(requestedProfile string) error {
-	store, err := config.DefaultStore()
-	if err != nil {
-		return err
+	profileName := strings.TrimSpace(requestedProfile)
+	if profileName == "" {
+		profileName = "the profile"
+	} else {
+		profileName = fmt.Sprintf("profile %q", profileName)
 	}
-	configuration, err := store.Load()
-	if err != nil {
-		return err
+	return fmt.Errorf("remove %s from Key Session.app; the app requires Keychain approval before deletion", profileName)
+}
+
+func validatePromptField(name string, value string, maximumCharacters int) error {
+	if value == "" {
+		return fmt.Errorf("--%s is required", name)
 	}
-	profileName, _, err := configuration.Resolve(requestedProfile)
-	if err != nil {
-		return err
+	if len([]rune(value)) > maximumCharacters {
+		return fmt.Errorf("--%s must be at most %d characters", name, maximumCharacters)
 	}
-	_ = session.Revoke()
-	if err := keychain.Delete(profileName); err != nil {
-		return fmt.Errorf("delete profile %q: %w", profileName, err)
-	}
-	delete(configuration.Profiles, profileName)
-	if configuration.DefaultProfile == profileName {
-		configuration.DefaultProfile = ""
-		remaining := configuration.SortedProfileNames()
-		if len(remaining) > 0 {
-			configuration.DefaultProfile = remaining[0]
+	for _, character := range value {
+		if character < ' ' || character == 0x7f {
+			return fmt.Errorf("--%s cannot contain control characters", name)
 		}
 	}
-	if err := store.Save(configuration); err != nil {
-		return err
-	}
-	fmt.Printf("Profile %q removed from Keychain and local configuration.\n", profileName)
 	return nil
 }
 
-func runBroker(profileName string, environmentVariable string, expiresAt int64) error {
-	if err := validateProfileName(profileName); err != nil {
-		return err
+func requireConsumerToken() (string, error) {
+	token := strings.TrimSpace(os.Getenv(consumerTokenEnvironment))
+	if token == "" {
+		return "", fmt.Errorf("%s is required; retain the capability returned by grant only for this agent task", consumerTokenEnvironment)
 	}
-	if err := validateEnvironmentVariable(environmentVariable); err != nil {
-		return err
-	}
-	expiration := time.Unix(expiresAt, 0)
-	if !expiration.After(time.Now()) {
-		return fmt.Errorf("broker expiration must be in the future")
-	}
-	secret, err := io.ReadAll(io.LimitReader(os.Stdin, 1024*1024))
-	if err != nil {
-		return fmt.Errorf("read broker secret: %w", err)
-	}
-	if len(secret) == 0 {
-		return fmt.Errorf("broker secret is empty")
-	}
-	context, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-	return session.ServeBroker(context, session.BrokerOptions{
-		Profile:             profileName,
-		EnvironmentVariable: environmentVariable,
-		ExpiresAt:           expiration,
-		Secret:              secret,
-	})
+	return token, nil
 }
 
 func validateProfileName(profileName string) error {

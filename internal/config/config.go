@@ -66,14 +66,14 @@ func (store Store) Save(configuration Config) error {
 		return fmt.Errorf("create temporary config: %w", err)
 	}
 	temporaryPath := temporaryFile.Name()
-	defer os.Remove(temporaryPath)
+	defer func() { _ = os.Remove(temporaryPath) }()
 
 	if err := temporaryFile.Chmod(0o600); err != nil {
-		temporaryFile.Close()
+		_ = temporaryFile.Close()
 		return fmt.Errorf("protect temporary config: %w", err)
 	}
 	if _, err := temporaryFile.Write(contents); err != nil {
-		temporaryFile.Close()
+		_ = temporaryFile.Close()
 		return fmt.Errorf("write temporary config: %w", err)
 	}
 	if err := temporaryFile.Close(); err != nil {

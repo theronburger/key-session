@@ -1,6 +1,6 @@
 module github.com/theronburger/key-session
 
-go 1.26.0
+go 1.26.6
 
 require (
 	github.com/spf13/cobra v1.10.2
