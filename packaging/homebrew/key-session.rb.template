@@ -8,7 +8,7 @@ cask "key-session" do
   homepage "https://github.com/theronburger/key-session"
 
   auto_updates true
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Key Session.app"
   binary "#{appdir}/Key Session.app/Contents/MacOS/key-session"
@@ -26,7 +26,9 @@ cask "key-session" do
     Key Session is self-signed because the project does not currently have an
     Apple Developer identity. Install with Homebrew's explicit Gatekeeper bypass:
 
-      brew install --cask --no-quarantine theronburger/tap/key-session
+      brew tap theronburger/tap
+      brew trust --cask theronburger/tap/key-session
+      brew install --cask --no-quarantine key-session
 
     Uninstall stops the app and Key Session daemon. Remove the MCP registrations
     too, so agents do not retain a path to the deleted app:
