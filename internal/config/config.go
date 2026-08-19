@@ -14,8 +14,7 @@ type Profile struct {
 }
 
 type Config struct {
-	DefaultProfile string             `json:"default_profile,omitempty"`
-	Profiles       map[string]Profile `json:"profiles"`
+	Profiles map[string]Profile `json:"profiles"`
 }
 
 type Store struct {
@@ -88,10 +87,7 @@ func (store Store) Save(configuration Config) error {
 func (configuration Config) Resolve(requestedProfile string) (string, Profile, error) {
 	profileName := requestedProfile
 	if profileName == "" {
-		profileName = configuration.DefaultProfile
-	}
-	if profileName == "" {
-		return "", Profile{}, fmt.Errorf("no default profile; run 'key-session setup <profile> --env <NAME>' first")
+		return "", Profile{}, fmt.Errorf("profile is required")
 	}
 	profile, found := configuration.Profiles[profileName]
 	if !found {

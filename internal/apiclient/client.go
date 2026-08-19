@@ -192,13 +192,27 @@ func (client *Client) StoreProfile(context context.Context, request contractv2.P
 	return client.send(context, http.MethodPost, "/v2/profiles", request, &struct{}{})
 }
 
-func (client *Client) SetDefaultProfile(context context.Context, name string) error {
-	return client.send(context, http.MethodPost, "/v2/profiles/default", contractv2.DefaultProfileRequest{Name: name}, &struct{}{})
-}
-
 func (client *Client) Doctor(context context.Context) (contractv2.DoctorReport, error) {
 	var value contractv2.DoctorReport
 	err := client.get(context, "/v2/doctor", &value)
+	return value, err
+}
+
+func (client *Client) AgentConnections(context context.Context) (contractv2.AgentConnectionsReport, error) {
+	var value contractv2.AgentConnectionsReport
+	err := client.get(context, "/v2/agent-connections", &value)
+	return value, err
+}
+
+func (client *Client) RepairAgentConnections(context context.Context, host string) (contractv2.AgentConnectionsReport, error) {
+	var value contractv2.AgentConnectionsReport
+	err := client.send(
+		context,
+		http.MethodPost,
+		"/v2/agent-connections/repair",
+		contractv2.AgentConnectionRepairRequest{Host: host},
+		&value,
+	)
 	return value, err
 }
 

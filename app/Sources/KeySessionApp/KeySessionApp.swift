@@ -23,11 +23,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct KeySessionApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
+    @State private var updates = AppUpdateController()
 
     var body: some Scene {
         Window("Key Session", id: "command-center") {
-            CommandCenterView(model: model)
-                .task { model.startPolling() }
+            CommandCenterView(model: model, updates: updates)
+                .task {
+                    model.startPolling()
+                    updates.start()
+                }
         }
         .defaultSize(width: 1180, height: 760)
         .windowResizability(.contentMinSize)
@@ -39,6 +43,13 @@ struct KeySessionApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Settings { SettingsView(model: model) }
+        Settings { SettingsView(model: model, updates: updates) }
+
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button(updates.buttonTitle) { updates.checkForUpdates() }
+                    .disabled(!updates.canCheckForUpdates)
+            }
+        }
     }
 }

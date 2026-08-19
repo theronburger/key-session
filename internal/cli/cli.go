@@ -89,6 +89,7 @@ func newRootCommand() *cobra.Command {
 		newRemoveProfileCommand(),
 		newVersionCommand(),
 		newUpdateCommand(),
+		newConnectCommand(),
 		newDoctorCommand(),
 		newDaemonCommand(),
 		newMCPCommand(),
@@ -101,7 +102,7 @@ func newSetupCommand() *cobra.Command {
 	var duration time.Duration
 	command := &cobra.Command{
 		Use:     "setup <profile>",
-		Short:   "Store a secret and make its profile the default",
+		Short:   "Store a named secret in Keychain",
 		Long:    "Prompt for a secret in the current terminal, store it in the macOS login Keychain with approval required for access, and save only non-secret profile metadata on disk.",
 		Example: "  key-session setup production-read-only --env MONGODB_URI --duration 1h\n  key-session setup github-read-only --env GITHUB_TOKEN --duration 30m",
 		Args:    cobra.ExactArgs(1),
@@ -121,17 +122,13 @@ func newGrantCommand() *cobra.Command {
 	var consumerDuration time.Duration
 	var reason string
 	command := &cobra.Command{
-		Use:     "grant [profile]",
+		Use:     "grant <profile>",
 		Short:   "Approve a consumer-scoped expiring lease",
 		Long:    "Create or reuse an ephemeral consumer capability, authenticate with Touch ID, and grant only that consumer a profile lease.",
 		Example: "  key-session grant production-read-only --consumer \"Codex: jira-mcp-relay\" --reason \"Verify DEED-123 records\" --duration 15m",
-		Args:    cobra.MaximumNArgs(1),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, arguments []string) error {
-			profileName := ""
-			if len(arguments) == 1 {
-				profileName = arguments[0]
-			}
-			return grantProfile(profileName, consumer, reason, duration, consumerDuration)
+			return grantProfile(arguments[0], consumer, reason, duration, consumerDuration)
 		},
 	}
 	command.Flags().DurationVar(&duration, "duration", 0, "override the profile's lease duration")
@@ -211,16 +208,12 @@ func newProfilesCommand() *cobra.Command {
 
 func newRemoveProfileCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove-profile [profile]",
+		Use:   "remove-profile <profile>",
 		Short: "Open the human profile-removal flow",
 		Long:  "Profile removal is completed in Key Session.app through its Keychain-authorized human management flow.",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, arguments []string) error {
-			profileName := ""
-			if len(arguments) == 1 {
-				profileName = arguments[0]
-			}
-			return removeProfile(profileName)
+			return removeProfile(arguments[0])
 		},
 	}
 }
@@ -273,10 +266,7 @@ func setupProfile(profileName string, environmentVariable string, duration time.
 	}); err != nil {
 		return err
 	}
-	if err := client.SetDefaultProfile(context.Background(), profileName); err != nil {
-		return err
-	}
-	fmt.Printf("Profile %q saved as the default with a %s lease.\n", profileName, friendlyDuration(duration))
+	fmt.Printf("Profile %q saved with a %s lease duration.\n", profileName, friendlyDuration(duration))
 	return nil
 }
 
@@ -442,7 +432,6 @@ func listProfiles(outputJSON bool) error {
 	if outputJSON {
 		type profileOutput struct {
 			Name                string `json:"name"`
-			Default             bool   `json:"default"`
 			EnvironmentVariable string `json:"environment_variable"`
 			LeaseSeconds        int64  `json:"lease_seconds"`
 		}
@@ -450,7 +439,6 @@ func listProfiles(outputJSON bool) error {
 		for _, profile := range snapshot.Profiles {
 			profiles = append(profiles, profileOutput{
 				Name:                profile.Name,
-				Default:             profile.IsDefault,
 				EnvironmentVariable: profile.EnvironmentVariable,
 				LeaseSeconds:        profile.DefaultLeaseSeconds,
 			})
@@ -458,11 +446,7 @@ func listProfiles(outputJSON bool) error {
 		return printJSON(map[string]any{"profiles": profiles})
 	}
 	for _, profile := range snapshot.Profiles {
-		marker := " "
-		if profile.IsDefault {
-			marker = "*"
-		}
-		fmt.Printf("%s %s -> %s (%s)\n", marker, profile.Name, profile.EnvironmentVariable, friendlyDuration(time.Duration(profile.DefaultLeaseSeconds)*time.Second))
+		fmt.Printf("%s -> %s (%s)\n", profile.Name, profile.EnvironmentVariable, friendlyDuration(time.Duration(profile.DefaultLeaseSeconds)*time.Second))
 	}
 	return nil
 }

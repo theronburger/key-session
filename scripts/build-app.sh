@@ -13,10 +13,12 @@ if [ -e "$destination" ]; then
 fi
 
 contents="$destination/Contents"
-mkdir -p "$contents/MacOS" "$contents/Resources"
+mkdir -p "$contents/MacOS" "$contents/Resources" "$contents/Frameworks"
 cp "$repository_root/packaging/Info.plist" "$contents/Info.plist"
 cp "$repository_root/assets/KeySession.icns" "$contents/Resources/KeySession.icns"
 cp "$repository_root/assets/key-session-key.png" "$contents/Resources/KeySessionKey.png"
+mkdir -p "$contents/Resources/skills"
+cp -R "$repository_root/skills/using-keys" "$contents/Resources/skills/using-keys"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $release_version" "$contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $release_version" "$contents/Info.plist"
 
@@ -30,6 +32,8 @@ swift build --package-path "$repository_root/app" -c release --product KeySessio
 swift_binary_directory=$(swift build --package-path "$repository_root/app" -c release --show-bin-path $swift_architecture_arguments)
 cp "$swift_binary_directory/KeySessionApp" "$contents/MacOS/KeySessionApp"
 chmod 0755 "$contents/MacOS/KeySessionApp"
+ditto "$swift_binary_directory/Sparkle.framework" "$contents/Frameworks/Sparkle.framework"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$contents/MacOS/KeySessionApp"
 
 if [ -n "$prebuilt_binary" ]; then
 	cp "$prebuilt_binary" "$contents/MacOS/key-session"
@@ -42,6 +46,8 @@ helper="$contents/Resources/Key Session Helper.app"
 mkdir -p "$helper/Contents/MacOS" "$helper/Contents/Resources"
 cp "$repository_root/packaging/Helper-Info.plist" "$helper/Contents/Info.plist"
 cp "$repository_root/assets/KeySession.icns" "$helper/Contents/Resources/KeySession.icns"
+mkdir -p "$helper/Contents/Resources/skills"
+cp -R "$repository_root/skills/using-keys" "$helper/Contents/Resources/skills/using-keys"
 cp "$contents/MacOS/key-session" "$helper/Contents/MacOS/KeySessionDaemon"
 chmod 0755 "$helper/Contents/MacOS/KeySessionDaemon"
 /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $release_version" "$helper/Contents/Info.plist"
@@ -49,14 +55,24 @@ chmod 0755 "$helper/Contents/MacOS/KeySessionDaemon"
 
 signing_identity=${KEY_SESSION_SIGNING_IDENTITY:--}
 if [ "$signing_identity" = "-" ]; then
+	codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
+	codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
+	codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
+	codesign --force --sign - "$contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+	codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$contents/Frameworks/Sparkle.framework"
 	codesign --force --sign - "$helper/Contents/MacOS/KeySessionDaemon"
 	codesign --force --sign - "$helper"
 	codesign --force --sign - "$contents/MacOS/key-session"
-	codesign --force --sign - "$destination"
+	codesign --force --sign - --entitlements "$repository_root/packaging/KeySession.entitlements" "$destination"
 else
+	codesign --force --options runtime --timestamp --sign "$signing_identity" --preserve-metadata=identifier,entitlements,flags "$contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
+	codesign --force --options runtime --timestamp --sign "$signing_identity" --preserve-metadata=identifier,entitlements,flags "$contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
+	codesign --force --options runtime --timestamp --sign "$signing_identity" --preserve-metadata=identifier,entitlements,flags "$contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
+	codesign --force --options runtime --timestamp --sign "$signing_identity" "$contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+	codesign --force --options runtime --timestamp --sign "$signing_identity" --preserve-metadata=identifier,entitlements,flags "$contents/Frameworks/Sparkle.framework"
 	codesign --force --options runtime --timestamp --sign "$signing_identity" "$helper/Contents/MacOS/KeySessionDaemon"
 	codesign --force --options runtime --timestamp --sign "$signing_identity" "$helper"
 	codesign --force --options runtime --timestamp --sign "$signing_identity" "$contents/MacOS/key-session"
-	codesign --force --options runtime --timestamp --sign "$signing_identity" "$destination"
+	codesign --force --options runtime --timestamp --sign "$signing_identity" --entitlements "$repository_root/packaging/KeySession.entitlements" "$destination"
 fi
 echo "$destination"

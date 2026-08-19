@@ -3,6 +3,7 @@ import SwiftUI
 
 struct CommandCenterView: View {
     @Bindable var model: AppModel
+    @Bindable var updates: AppUpdateController
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -14,6 +15,14 @@ struct CommandCenterView: View {
         }
         .navigationTitle(title)
         .toolbar {
+            if updates.availableVersion != nil {
+                ToolbarItem(placement: .automatic) {
+                    Button { updates.checkForUpdates() } label: {
+                        Label(updates.buttonTitle, systemImage: "arrow.down.circle.fill")
+                    }
+                    .help(updates.buttonTitle)
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button { Task { await model.refresh() } } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")

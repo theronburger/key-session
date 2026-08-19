@@ -64,6 +64,19 @@ public struct DaemonClient: Sendable {
 		try await get("/v2/doctor", as: DoctorReport.self)
 	}
 
+    public func agentConnections() async throws -> AgentConnectionsReport {
+        try await get("/v2/agent-connections", as: AgentConnectionsReport.self)
+    }
+
+    public func repairAgentConnections(host: String = "") async throws -> AgentConnectionsReport {
+        try await send(
+            "/v2/agent-connections/repair",
+            method: "POST",
+            body: AgentConnectionRepairRequest(host: host),
+            as: AgentConnectionsReport.self
+        )
+    }
+
 	public func revoke(consumerId: String, leaseId: String? = nil) async throws {
 		let _: EmptyResponse = try await send(
 			"/v2/admin/revoke",

@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/theronburger/key-session/internal/agentconnections"
 	"github.com/theronburger/key-session/internal/buildinfo"
 	contractv2 "github.com/theronburger/key-session/internal/contract/v2"
 )
@@ -26,11 +27,12 @@ import (
 const maximumRequestBytes = 2 * 1024 * 1024
 
 type Server struct {
-	service    *Service
-	token      string
-	instanceID string
-	version    string
-	startedAt  time.Time
+	service          *Service
+	agentConnections *agentconnections.Manager
+	token            string
+	instanceID       string
+	version          string
+	startedAt        time.Time
 }
 
 func Run(parent context.Context) error {
@@ -67,7 +69,11 @@ func Run(parent context.Context) error {
 		return err
 	}
 	defer service.Close()
-	server := &Server{service: service, token: token, instanceID: instanceID, version: version, startedAt: startedAt}
+	connections, _ := agentconnections.New()
+	server := &Server{
+		service: service, agentConnections: connections, token: token,
+		instanceID: instanceID, version: version, startedAt: startedAt,
+	}
 	httpServer := &http.Server{
 		Handler:           server,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -261,16 +267,6 @@ func (server *Server) ServeHTTP(response http.ResponseWriter, request *http.Requ
 		}
 		body.Secret = ""
 		writeJSON(response, http.StatusOK, map[string]bool{"saved": true})
-	case request.Method == http.MethodPost && request.URL.Path == "/v2/profiles/default":
-		var body contractv2.DefaultProfileRequest
-		if !decodeBody(response, request, &body) {
-			return
-		}
-		if err := server.service.SetDefaultProfile(body.Name); err != nil {
-			writeServiceError(response, err)
-			return
-		}
-		writeJSON(response, http.StatusOK, map[string]bool{"updated": true})
 	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/management/end"):
 		name := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/v2/profiles/"), "/management/end")
 		if name == "" || strings.Contains(name, "/") {
@@ -328,6 +324,26 @@ func (server *Server) ServeHTTP(response http.ResponseWriter, request *http.Requ
 		writeJSON(response, http.StatusOK, map[string]bool{"deleted": true})
 	case request.Method == http.MethodGet && request.URL.Path == "/v2/doctor":
 		writeJSON(response, http.StatusOK, server.service.Doctor())
+	case request.Method == http.MethodGet && request.URL.Path == "/v2/agent-connections":
+		if server.agentConnections == nil {
+			writeError(response, http.StatusServiceUnavailable, "UNAVAILABLE", "Agent connection management is unavailable", true)
+			return
+		}
+		writeJSON(response, http.StatusOK, server.agentConnections.Inspect(request.Context()))
+	case request.Method == http.MethodPost && request.URL.Path == "/v2/agent-connections/repair":
+		if server.agentConnections == nil {
+			writeError(response, http.StatusServiceUnavailable, "UNAVAILABLE", "Agent connection management is unavailable", true)
+			return
+		}
+		var body contractv2.AgentConnectionRepairRequest
+		if !decodeBody(response, request, &body) {
+			return
+		}
+		if body.Host != "" && body.Host != "codex" && body.Host != "claude" {
+			writeError(response, http.StatusBadRequest, "INVALID_REQUEST", "Unknown agent host", false)
+			return
+		}
+		writeJSON(response, http.StatusOK, server.agentConnections.Repair(request.Context(), body.Host))
 	default:
 		writeError(response, http.StatusNotFound, "NOT_FOUND", "Route not found", false)
 	}
