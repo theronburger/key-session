@@ -9,14 +9,14 @@
   </p>
 </div>
 
-`key-session` gives local tools and coding agents time-limited, user-approved access to secrets stored in macOS Keychain.
+`key-session` lets you grant agents scoped, time-limited use of secrets without letting them ever actually see them. By using macOS's native Keychain and biometrics, it blocks even determined agents from "problem solving" via computer use.
 
-Every agent task gets an ephemeral consumer capability. Its leases are isolated from other Codex or Claude tasks, explain their purpose, expire automatically, and require an unmistakable native approval flow. Secrets are never placed in process arguments or written to disk.
+Every agent task gets an ephemeral consumer capability. Its leases are isolated from each other, explain their purpose, expire automatically, and require an unmistakable native approval flow. Secrets are never placed in process arguments or written to disk.
 
 <p align="center">
-  <img src="assets/key-session-command-center.jpg" alt="Key Session command center showing fictional profiles and recent activity" width="900">
+  <img src="assets/key-session-command-center-active-lease.png" alt="Key Session command center showing a fictional active consumer lease, profiles, and recent activity" width="900">
   <br>
-  <sub>The native command center. All profiles and activity shown here are fictional.</sub>
+  <sub>The native command center with an active consumer-scoped lease. All profiles and activity shown here are fictional.</sub>
 </p>
 
 ## Requirements
