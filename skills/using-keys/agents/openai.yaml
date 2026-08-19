@@ -1,0 +1,4 @@
+interface:
+  display_name: "Using Keys"
+  short_description: "Use Keychain secrets through scoped leases"
+  default_prompt: "Use $using-keys to request and safely use a key-session profile for this task."

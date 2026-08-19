@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest a focused improvement to key-session.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What security or workflow problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful outcome and any security tradeoffs.
+    validations:
+      required: true
