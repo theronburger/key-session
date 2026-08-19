@@ -20,6 +20,8 @@ scripts/local-runner.sh stop
 
 The runner application updates itself through GitHub. Update the pinned bootstrap version and checksum in `scripts/local-runner.sh` when rebuilding the local installation from scratch.
 
+The workflows disable `actions/setup-go` remote caching. This runner is persistent, so its local Go caches already survive between jobs; uploading them to GitHub adds latency and unnecessary data movement.
+
 ## Trust boundary
 
 The workflows never use `pull_request`. CI runs on same-repository branch pushes, `main` pushes, manual dispatches, schedules, and release tags. A fork cannot enqueue its code on this Mac. Do not add a `pull_request` or `pull_request_target` trigger while the workflows target this persistent machine.
