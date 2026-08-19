@@ -4,9 +4,12 @@ All notable changes are documented here. The project follows [Semantic Versionin
 
 ## [Unreleased]
 
+## [v0.5.1] - 2026-08-19
+
 ### Fixed
 
 - Homebrew installation instructions now use the supported, app-scoped quarantine removal flow after Homebrew removed `--no-quarantine`.
+- The background helper now identifies Key Session as its owning app in macOS Login Items instead of falling back to the signing-certificate owner.
 
 ## [v0.5.0] - 2026-08-19
 
