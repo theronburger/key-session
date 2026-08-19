@@ -29,10 +29,10 @@ Every agent task gets an ephemeral consumer capability. Its leases are isolated 
 Install the universal app and CLI with Homebrew, then open it:
 
 ```bash
-brew tap theronburger/tap && brew trust --cask theronburger/tap/key-session && brew install --cask --no-quarantine key-session && open -a "Key Session"
+brew tap theronburger/tap && brew trust --cask theronburger/tap/key-session && brew install --cask key-session && xattr -dr com.apple.quarantine "/Applications/Key Session.app" && open -a "Key Session"
 ```
 
-Homebrew 6 requires explicit trust for non-official tap code, so the command trusts only the `key-session` Cask rather than the complete tap. The project does not currently have an Apple Developer identity, so releases use a persistent self-signed release certificate rather than Apple notarization. `--no-quarantine` is the separate Gatekeeper acknowledgement for that limitation; the stable certificate preserves Keychain ACL identity across releases, and the app independently verifies every in-app update with its dedicated Ed25519 key.
+Homebrew 6 requires explicit trust for non-official tap code, so the command trusts only the `key-session` Cask rather than the complete tap. The project does not currently have an Apple Developer identity, so releases use a persistent self-signed release certificate rather than Apple notarization. Homebrew removed its `--no-quarantine` option; the command therefore removes Gatekeeper quarantine only from the installed Key Session app after Homebrew verifies and installs the pinned archive. The stable certificate preserves Keychain ACL identity across releases, and the app independently verifies every in-app update with its dedicated Ed25519 key.
 
 On first launch, Key Session discovers installed Codex and Claude Code clients and opens Connection Doctor when setup is incomplete. **Connect Detected Agents** installs the bundled `using-keys` skill and registers the MCP server through each agent's own CLI. No repository checkout or hand-edited configuration is required.
 
