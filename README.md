@@ -1,16 +1,23 @@
-# key-session
-
 <div align="center">
-  <img src="assets/key-session-icon.png" alt="Key Session icon" width="180">
+  <img src="assets/key-session-icon.png" alt="Key Session icon" width="280" height="280">
+  <h1>Key Session</h1>
+  <p><strong>Human-approved, consumer-scoped access to secrets in macOS Keychain.</strong></p>
+  <p>
+    <a href="https://github.com/theronburger/key-session/actions/workflows/ci.yml"><img src="https://github.com/theronburger/key-session/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://github.com/theronburger/key-session/actions/workflows/codeql.yml"><img src="https://github.com/theronburger/key-session/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+    <a href="https://github.com/theronburger/key-session/actions/workflows/release.yml"><img src="https://github.com/theronburger/key-session/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  </p>
 </div>
-
-[![CI](https://github.com/theronburger/key-session/actions/workflows/ci.yml/badge.svg)](https://github.com/theronburger/key-session/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/theronburger/key-session/actions/workflows/codeql.yml/badge.svg)](https://github.com/theronburger/key-session/actions/workflows/codeql.yml)
-[![Release](https://github.com/theronburger/key-session/actions/workflows/release.yml/badge.svg)](https://github.com/theronburger/key-session/actions/workflows/release.yml)
 
 `key-session` gives local tools and coding agents time-limited, user-approved access to secrets stored in macOS Keychain.
 
 Every agent task gets an ephemeral consumer capability. Its leases are isolated from other Codex or Claude tasks, explain their purpose, expire automatically, and require an unmistakable native approval flow. Secrets are never placed in process arguments or written to disk.
+
+<p align="center">
+  <img src="assets/key-session-command-center.jpg" alt="Key Session command center showing fictional profiles and recent activity" width="900">
+  <br>
+  <sub>The native command center. All profiles and activity shown here are fictional.</sub>
+</p>
 
 ## Requirements
 
