@@ -299,30 +299,30 @@ func (manager *Manager) repairClaude(ctx context.Context) contractv2.AgentConnec
 func (manager *Manager) repairCodexMCP(ctx context.Context, state string) error {
 	original, err := readPrivateFile(manager.paths.CodexConfig)
 	if err != nil {
-		return errors.New("Codex configuration is not safe to repair.")
+		return errors.New("Codex configuration is not safe to repair")
 	}
 	current, err := readPrivateFile(manager.paths.CodexConfig)
 	if err != nil || !bytes.Equal(current, original) {
-		return errors.New("Codex configuration changed during repair; no changes were made.")
+		return errors.New("Codex configuration changed during repair; no changes were made")
 	}
 	environment := map[string]string{"CODEX_HOME": manager.paths.CodexConfigRoot}
 	rollbackExpected := original
 	if state == StateNeedsRepair {
 		if err := manager.runMutation(ctx, manager.paths.CodexExecutable, []string{"mcp", "remove", ServerName}, environment); err != nil {
-			return errors.New("Codex refused to remove the outdated MCP entry.")
+			return errors.New("Codex refused to remove the outdated MCP entry")
 		}
 		rollbackExpected, err = readPrivateFile(manager.paths.CodexConfig)
 		if err != nil {
-			return errors.New("Codex configuration became unsafe after removing the outdated MCP entry.")
+			return errors.New("Codex configuration became unsafe after removing the outdated MCP entry")
 		}
 	}
 	if err := manager.runMutation(ctx, manager.paths.CodexExecutable, []string{
 		"mcp", "add", ServerName, "--", manager.paths.HelperExecutable, "mcp",
 	}, environment); err != nil {
 		if restoreErr := restorePrivateFile(manager.paths.CodexConfig, rollbackExpected, original); restoreErr != nil {
-			return errors.New("Codex refused the MCP connection; a concurrent configuration change was left untouched.")
+			return errors.New("Codex refused the MCP connection; a concurrent configuration change was left untouched")
 		}
-		return errors.New("Codex refused the MCP connection; its prior configuration was restored.")
+		return errors.New("Codex refused the MCP connection; its prior configuration was restored")
 	}
 	return nil
 }
@@ -330,11 +330,11 @@ func (manager *Manager) repairCodexMCP(ctx context.Context, state string) error 
 func (manager *Manager) repairClaudeMCP(ctx context.Context, state string) error {
 	original, err := readPrivateFile(manager.paths.ClaudeConfig)
 	if err != nil {
-		return errors.New("Claude Code configuration is not safe to repair.")
+		return errors.New("Claude Code configuration is not safe to repair")
 	}
 	current, err := readPrivateFile(manager.paths.ClaudeConfig)
 	if err != nil || !bytes.Equal(current, original) {
-		return errors.New("Claude Code configuration changed during repair; no changes were made.")
+		return errors.New("Claude Code configuration changed during repair; no changes were made")
 	}
 	rollbackExpected := original
 	environment := map[string]string{}
@@ -342,20 +342,20 @@ func (manager *Manager) repairClaudeMCP(ctx context.Context, state string) error
 		if err := manager.runMutation(ctx, manager.paths.ClaudeExecutable, []string{
 			"mcp", "remove", ServerName, "--scope", "user",
 		}, environment); err != nil {
-			return errors.New("Claude Code refused to remove the outdated MCP entry.")
+			return errors.New("Claude Code refused to remove the outdated MCP entry")
 		}
 		rollbackExpected, err = readPrivateFile(manager.paths.ClaudeConfig)
 		if err != nil {
-			return errors.New("Claude Code configuration became unsafe after removing the outdated MCP entry.")
+			return errors.New("Claude Code configuration became unsafe after removing the outdated MCP entry")
 		}
 	}
 	if err := manager.runMutation(ctx, manager.paths.ClaudeExecutable, []string{
 		"mcp", "add", "--scope", "user", ServerName, "--", manager.paths.HelperExecutable, "mcp",
 	}, environment); err != nil {
 		if restoreErr := restorePrivateFile(manager.paths.ClaudeConfig, rollbackExpected, original); restoreErr != nil {
-			return errors.New("Claude Code refused the MCP connection; a concurrent configuration change was left untouched.")
+			return errors.New("Claude Code refused the MCP connection; a concurrent configuration change was left untouched")
 		}
-		return errors.New("Claude Code refused the MCP connection; its prior configuration was restored.")
+		return errors.New("Claude Code refused the MCP connection; its prior configuration was restored")
 	}
 	return nil
 }
