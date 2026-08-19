@@ -2,4 +2,3 @@
 .DS_Store
 /dist/
 /app/.build/
-/.github-runner/

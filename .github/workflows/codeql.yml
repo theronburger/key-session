@@ -2,7 +2,9 @@ name: CodeQL
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
+  pull_request:
+    branches: [main]
   schedule:
     - cron: "23 4 * * 1"
   workflow_dispatch:
@@ -18,7 +20,7 @@ concurrency:
 jobs:
   analyze:
     name: Analyze Go
-    runs-on: [self-hosted, macOS, ARM64, key-session-local]
+    runs-on: macos-26
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -26,7 +28,6 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          cache: false
       - name: Initialize CodeQL
         uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:

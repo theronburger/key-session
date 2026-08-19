@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: [self-hosted, macOS, ARM64, key-session-local]
+    runs-on: macos-26
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -23,13 +24,12 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          cache: false
       - name: Run local CI contract
         run: scripts/ci.sh
 
   lint:
     name: Lint
-    runs-on: [self-hosted, macOS, ARM64, key-session-local]
+    runs-on: macos-26
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -37,7 +37,6 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          cache: false
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
@@ -49,7 +48,7 @@ jobs:
 
   vulnerabilities:
     name: Vulnerability scan
-    runs-on: [self-hosted, macOS, ARM64, key-session-local]
+    runs-on: macos-26
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -57,7 +56,6 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          cache: false
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
       - name: Scan reachable code
@@ -66,7 +64,7 @@ jobs:
   package:
     name: Package universal app
     needs: [test, lint, vulnerabilities]
-    runs-on: [self-hosted, macOS, ARM64, key-session-local]
+    runs-on: macos-26
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -74,6 +72,5 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          cache: false
       - name: Build universal dry run
         run: scripts/build-release.sh dist
