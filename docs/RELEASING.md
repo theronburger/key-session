@@ -43,7 +43,7 @@ Version 0.5.0 is the first published binary release, so there is no public Devel
 
 ## Cut a release
 
-1. Merge changes to `main` with Conventional Commit PR titles. Release Please maintains one release PR containing the calculated SemVer bump, changelog, and aligned version files.
+1. Merge changes to `main` with Conventional Commit PR titles. Release Please maintains one release PR containing the calculated SemVer bump, changelog, and aligned version files, then explicitly dispatches its required CI and CodeQL checks.
 2. Review the release PR. Confirm its version and notes include exactly the changes intended for publication.
 3. Run `make check` and `make release-dry-run` on macOS when the release changes packaging, Swift UI, daemon contracts, signing, updates, or native Keychain code.
 4. Merge the release PR. Release Please creates the version tag and a draft GitHub release, then invokes the publishing workflow directly.
