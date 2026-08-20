@@ -2,6 +2,8 @@
 
 ## One-time GitHub setup
 
+Under **Settings → Actions → General**, enable GitHub Actions to create pull requests so Release Please can maintain its release PR. Configure the `main` ruleset to allow squash merges only and require the `Test` check; the title validator runs inside that required check.
+
 Create a protected GitHub environment named `release`, require Theron as a reviewer, and create these **environment secrets** rather than repository-wide secrets:
 
 - `SPARKLE_PRIVATE_KEY`: the private Ed25519 key exported by Sparkle's `generate_keys` tool.
@@ -41,14 +43,17 @@ Version 0.5.0 is the first published binary release, so there is no public Devel
 
 ## Cut a release
 
-1. Update `VERSION`, the default in `internal/buildinfo`, and both version values in `packaging/Info.plist`.
-2. Move entries from `Unreleased` into a dated `## [vX.Y.Z]` section in `CHANGELOG.md`.
-3. Run `make check` and `make release-dry-run` on macOS.
-4. Merge the release change to `main`.
-5. Create an annotated tag from the reviewed `main` commit: `git tag -a vX.Y.Z -m "Key Session X.Y.Z" && git push origin vX.Y.Z`.
-6. Inspect the pending deployment and approve the protected `release` environment only when the tag, workflow diff, and expected version match.
+1. Merge changes to `main` with Conventional Commit PR titles. Release Please maintains one release PR containing the calculated SemVer bump, changelog, and aligned version files.
+2. Review the release PR. Confirm its version and notes include exactly the changes intended for publication.
+3. Run `make check` and `make release-dry-run` on macOS when the release changes packaging, Swift UI, daemon contracts, signing, updates, or native Keychain code.
+4. Merge the release PR. Release Please creates the version tag and a draft GitHub release, then invokes the publishing workflow directly.
+5. Inspect the pending deployment and approve the protected `release` environment only when the tag, release PR, workflow diff, and expected version match.
 
-The tag workflow validates version alignment, reruns checks, builds Intel and Apple Silicon binaries, creates a universal app, signs every nested component with the persistent self-signed release identity, produces an SBOM and checksums, generates and signs the Sparkle appcast, attests the artifacts, publishes the GitHub release, and updates the Homebrew Cask.
+The publishing workflow validates version alignment, reruns checks, builds Intel and Apple Silicon binaries, creates a universal app, signs every nested component with the persistent self-signed release identity, produces an SBOM and checksums, generates and signs the Sparkle appcast, attests the artifacts, publishes the draft GitHub release, and updates the Homebrew Cask.
+
+## Recovery release
+
+If Release Please cannot invoke the publishing workflow after creating its tag, rerun the `Prepare release` workflow from `main`. If the tag exists without a GitHub release, the tag-triggered publishing workflow remains a recovery path. Never move or replace a published version tag.
 
 ## Verify a published release
 

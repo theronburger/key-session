@@ -145,4 +145,4 @@ make app
 make release-dry-run
 ```
 
-CI runs on GitHub-hosted macOS 26 runners with Swift 6.2 or newer. It runs race detection, linting, `govulncheck`, CodeQL, and a universal packaging dry run for every pull request and change to `main`. Tagged releases add Ed25519-signed Sparkle updates, CycloneDX SBOMs, SHA-256 checksums, GitHub build-provenance attestations, and an automatic Homebrew tap update. See [CONTRIBUTING.md](CONTRIBUTING.md) and [the release runbook](docs/RELEASING.md).
+CI runs on GitHub-hosted macOS 26 runners with Swift 6.2 or newer. It runs race detection, linting, `govulncheck`, CodeQL, and a universal packaging dry run for every pull request and change to `main`. Release Please maintains the version and changelog in a reviewed release PR; merging it invokes the protected publishing workflow for Ed25519-signed Sparkle updates, CycloneDX SBOMs, SHA-256 checksums, GitHub build-provenance attestations, and an automatic Homebrew tap update. See [CONTRIBUTING.md](CONTRIBUTING.md) and [the release runbook](docs/RELEASING.md).

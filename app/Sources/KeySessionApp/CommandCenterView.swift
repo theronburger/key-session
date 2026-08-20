@@ -4,6 +4,7 @@ import SwiftUI
 struct CommandCenterView: View {
     @Bindable var model: AppModel
     @Bindable var updates: AppUpdateController
+    @Bindable var visibility: AppVisibilitySettings
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -73,6 +74,13 @@ struct CommandCenterView: View {
                         .padding(.top, 14)
                         .padding(.bottom, 4)
                     SidebarRow(title: "Connection Doctor", systemImage: lifecycleSymbol, selection: .doctor, model: model)
+                    Text("Application")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 8)
+                        .padding(.top, 14)
+                        .padding(.bottom, 4)
+                    SidebarRow(title: "Settings", systemImage: "gearshape", selection: .settings, model: model)
                 }
                 .padding(.horizontal, 8)
                 .padding(.top, 10)
@@ -100,6 +108,7 @@ struct CommandCenterView: View {
         case .profiles: OverviewView(model: model)
         case .activity: ActivityView(model: model)
         case .doctor: ConnectionDoctorView(model: model)
+        case .settings: SettingsView(model: model, updates: updates, visibility: visibility)
         }
     }
 
@@ -108,6 +117,7 @@ struct CommandCenterView: View {
         case .profiles: "Profiles"
         case .activity: "Activity"
         case .doctor: "Connection Doctor"
+        case .settings: "Settings"
         }
     }
 

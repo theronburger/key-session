@@ -5,6 +5,7 @@ public enum SidebarSelection: Hashable, Sendable {
     case profiles
     case activity
     case doctor
+    case settings
 }
 
 public struct ProfileManagementSession: Identifiable, Sendable {
