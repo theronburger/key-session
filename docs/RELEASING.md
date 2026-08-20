@@ -43,11 +43,12 @@ Version 0.5.0 is the first published binary release, so there is no public Devel
 
 ## Cut a release
 
-1. Merge changes to `main` with Conventional Commit PR titles. Release Please maintains one release PR containing the calculated SemVer bump, changelog, and aligned version files, then explicitly dispatches its required CI and CodeQL checks.
-2. Review the release PR. Confirm its version and notes include exactly the changes intended for publication.
-3. Run `make check` and `make release-dry-run` on macOS when the release changes packaging, Swift UI, daemon contracts, signing, updates, or native Keychain code.
-4. Merge the release PR. Release Please creates the version tag and a draft GitHub release, then invokes the publishing workflow directly.
-5. Inspect the pending deployment and approve the protected `release` environment only when the tag, release PR, workflow diff, and expected version match.
+1. Merge changes to `main` with Conventional Commit PR titles. Release Please maintains one release PR containing the calculated SemVer bump, changelog, and aligned version files.
+2. Approve the release PR's pending GitHub Actions runs. GitHub deliberately holds native PR workflows created through `GITHUB_TOKEN`; manually dispatched workflows do not satisfy the PR ruleset.
+3. Review the release PR. Confirm its version and notes include exactly the changes intended for publication, and that every required check has passed.
+4. Run `make check` and `make release-dry-run` on macOS when the release changes packaging, Swift UI, daemon contracts, signing, updates, or native Keychain code.
+5. Merge the release PR. Release Please creates the version tag and a draft GitHub release, then invokes the publishing workflow directly.
+6. Inspect the pending deployment and approve the protected `release` environment only when the tag, release PR, workflow diff, and expected version match.
 
 The publishing workflow validates version alignment, reruns checks, builds Intel and Apple Silicon binaries, creates a universal app, signs every nested component with the persistent self-signed release identity, produces an SBOM and checksums, generates and signs the Sparkle appcast, attests the artifacts, publishes the draft GitHub release, and updates the Homebrew Cask.
 

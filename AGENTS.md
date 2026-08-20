@@ -16,7 +16,7 @@ The parent `AGENTS.md` contains the general coding rules. These rules apply spec
 - Merges to `main` update an automated Release Please PR; they do not publish immediately.
 - `feat` increments the minor version, `fix` increments the patch version, and a title with `!` increments the major version.
 - The release PR must keep `VERSION`, `internal/buildinfo/info.go`, `packaging/Info.plist`, `.release-please-manifest.json`, and `CHANGELOG.md` aligned.
-- Release Please explicitly dispatches CI and CodeQL for its PR because events created by the workflow token do not trigger ordinary PR workflows.
+- GitHub creates native PR checks for Release Please's workflow-created PR, but holds them for maintainer approval as a security boundary. Approve those checks from the PR before merging; do not replace them with `workflow_dispatch` runs because dispatched checks do not satisfy PR rulesets.
 - Merge the release PR only when its version and notes describe everything intended for the release.
 - The merge creates a draft GitHub release and invokes the signed publishing workflow. The protected `release` environment remains the human approval gate.
 - Before approving publication, verify the tag, version diff, changelog, and workflow changes. The publishing workflow runs the full checks, signs the app and Sparkle feed, publishes the GitHub release, and updates Homebrew.
