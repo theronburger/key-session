@@ -93,6 +93,7 @@ struct MenuBarSummaryView: View {
             HStack(spacing: 8) {
                 Button { model.selection = .doctor; openMainWindow() } label: { Label("Doctor", systemImage: "stethoscope") }.frame(maxWidth: .infinity)
                 Button { Task { await model.refresh() } } label: { Label("Refresh", systemImage: "arrow.clockwise") }.frame(maxWidth: .infinity)
+                Button { model.selection = .settings; openMainWindow() } label: { Label("Settings", systemImage: "gearshape") }.frame(maxWidth: .infinity)
                 Button { NSApplication.shared.terminate(nil) } label: { Label("Quit", systemImage: "power") }.frame(maxWidth: .infinity)
             }
         }

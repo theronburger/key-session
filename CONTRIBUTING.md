@@ -35,4 +35,8 @@ GitHub Actions uses ephemeral GitHub-hosted macOS 26 runners. Pull requests and 
 
 ## Pull requests
 
-Explain user-visible behavior, security impact, and verification. Update `CHANGELOG.md` for notable changes. CI must pass on all supported runners before merge.
+Explain user-visible behavior, security impact, and verification. CI must pass on all supported runners before merge.
+
+PR titles use Conventional Commits because squash-merged titles drive release versioning and changelog generation. Use `feat: summary` for a user-visible capability, `fix: summary` for a bug fix, or another allowed type documented in `AGENTS.md`. Scopes are optional, as in `fix(menu-bar): preserve the last visible surface`. Add `!` before the colon for a breaking change.
+
+Do not bump versions or edit the release changelog in an ordinary PR. Release Please maintains a separate release PR containing those changes.

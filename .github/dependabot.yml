@@ -10,6 +10,8 @@ updates:
     groups:
       go-dependencies:
         patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"
     labels: [dependencies, go]
   - package-ecosystem: github-actions
     directory: /
@@ -21,4 +23,6 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"
     labels: [dependencies, github-actions]

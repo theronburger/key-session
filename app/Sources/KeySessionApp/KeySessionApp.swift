@@ -6,9 +6,12 @@ extension Notification.Name {
     static let openKeySession = Notification.Name("openKeySession")
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    let visibility = AppVisibilitySettings()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApplication.shared.setActivationPolicy(.regular)
+        visibility.applyActivationPolicy()
         NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
@@ -27,7 +30,7 @@ struct KeySessionApp: App {
 
     var body: some Scene {
         Window("Key Session", id: "command-center") {
-            CommandCenterView(model: model, updates: updates)
+            CommandCenterView(model: model, updates: updates, visibility: appDelegate.visibility)
                 .task {
                     model.startPolling()
                     updates.start()
@@ -35,21 +38,28 @@ struct KeySessionApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .windowResizability(.contentMinSize)
-
-        MenuBarExtra {
-            MenuBarSummaryView(model: model)
-        } label: {
-            MenuBarStatusLabel(model: model)
-        }
-        .menuBarExtraStyle(.window)
-
-        Settings { SettingsView(model: model, updates: updates) }
-
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    model.selection = .settings
+                    NotificationCenter.default.post(name: .openKeySession, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
             CommandGroup(after: .appInfo) {
                 Button(updates.buttonTitle) { updates.checkForUpdates() }
                     .disabled(!updates.canCheckForUpdates)
             }
         }
+
+        MenuBarExtra(isInserted: Binding(
+            get: { appDelegate.visibility.showsMenuBar },
+            set: { appDelegate.visibility.setMenuBarVisible($0) }
+        )) {
+            MenuBarSummaryView(model: model)
+        } label: {
+            MenuBarStatusLabel(model: model)
+        }
+        .menuBarExtraStyle(.window)
     }
 }

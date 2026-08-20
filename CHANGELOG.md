@@ -2,8 +2,6 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
 ## [v0.5.1] - 2026-08-19
 
 ### Fixed
