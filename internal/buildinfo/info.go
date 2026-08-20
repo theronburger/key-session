@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	Version   = "0.5.1" // x-release-please-version
+	Version   = "0.6.0" // x-release-please-version
 	Commit    = "unknown"
 	BuildDate = "unknown"
 	Dirty     = "unknown"
