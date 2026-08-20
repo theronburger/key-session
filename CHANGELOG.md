@@ -2,6 +2,20 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/theronburger/key-session/compare/v0.5.1...v0.6.0) (2026-08-20)
+
+
+### Added
+
+* add app visibility and automated releases ([5615f14](https://github.com/theronburger/key-session/commit/5615f144c41156cbf213d5598f35322ff1199809))
+
+
+### Fixed
+
+* **release:** run checks for automated release PRs ([2188cda](https://github.com/theronburger/key-session/commit/2188cdaf0808c432d8bcb85838a1e53f5836453c))
+* **release:** target repository for check dispatch ([1a1b1de](https://github.com/theronburger/key-session/commit/1a1b1dec06d091244da9ce21566e2d298cb24327))
+* **release:** use native release PR checks ([934f5cb](https://github.com/theronburger/key-session/commit/934f5cbac7a02b2f1923430f37b5e55b427046bb))
+
 ## [v0.5.1] - 2026-08-19
 
 ### Fixed
