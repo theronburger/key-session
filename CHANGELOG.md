@@ -2,6 +2,30 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0](https://github.com/theronburger/key-session/compare/v0.6.2...v0.7.0) (2026-09-22)
+
+
+### Added
+
+* add app visibility and automated releases ([5615f14](https://github.com/theronburger/key-session/commit/5615f144c41156cbf213d5598f35322ff1199809))
+
+
+### Fixed
+
+* authenticate profile removal after confirmation ([#15](https://github.com/theronburger/key-session/issues/15)) ([78d6984](https://github.com/theronburger/key-session/commit/78d6984b27e38600183785d2bcc8782709a6bfca))
+* **release:** run checks for automated release PRs ([2188cda](https://github.com/theronburger/key-session/commit/2188cdaf0808c432d8bcb85838a1e53f5836453c))
+* **release:** target repository for check dispatch ([1a1b1de](https://github.com/theronburger/key-session/commit/1a1b1dec06d091244da9ce21566e2d298cb24327))
+* **release:** use native release PR checks ([934f5cb](https://github.com/theronburger/key-session/commit/934f5cbac7a02b2f1923430f37b5e55b427046bb))
+
+
+### Maintenance
+
+* **deps:** bump the github-actions group across 1 directory with 5 updates ([#11](https://github.com/theronburger/key-session/issues/11)) ([c65cf8b](https://github.com/theronburger/key-session/commit/c65cf8bd575568ab986ad6ece64512bd8dca7a64))
+* **deps:** bump the go-dependencies group with 2 updates ([#14](https://github.com/theronburger/key-session/issues/14)) ([8816646](https://github.com/theronburger/key-session/commit/8816646704e5e730cda46127f62217f85a0d9488))
+* **main:** release 0.6.0 ([9b64d79](https://github.com/theronburger/key-session/commit/9b64d79d569945261b62f9693260625baa0b6eab))
+* **main:** release 0.6.1 ([#16](https://github.com/theronburger/key-session/issues/16)) ([390f331](https://github.com/theronburger/key-session/commit/390f33190da56dbc479ad33b330a734cbbb0c789))
+* **main:** release 0.6.2 ([#17](https://github.com/theronburger/key-session/issues/17)) ([eadbc72](https://github.com/theronburger/key-session/commit/eadbc72da52648e32b83ef5b36651bb064402bc8))
+
 ## [0.6.2](https://github.com/theronburger/key-session/compare/v0.6.0...v0.6.2) (2026-09-22)
 
 
