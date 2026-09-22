@@ -214,6 +214,21 @@ int key_session_keychain_read(const char *accountValue, const char *approvalMess
     }
 }
 
+int key_session_keychain_delete_with_approval(const char *accountValue, const char *approvalMessageValue, char **errorMessage) {
+    @autoreleasepool {
+        NSString *account = [NSString stringWithUTF8String:accountValue];
+        NSString *approvalMessage = [NSString stringWithUTF8String:approvalMessageValue];
+        if (account == nil || approvalMessage == nil || [approvalMessage length] == 0) {
+            setTextError(errorMessage, @"invalid profile or approval message");
+            return 1;
+        }
+        if (authenticateUserPresence(account, approvalMessage, errorMessage) != 0) {
+            return 1;
+        }
+        return key_session_keychain_delete(accountValue, errorMessage);
+    }
+}
+
 int key_session_keychain_delete(const char *accountValue, char **errorMessage) {
     @autoreleasepool {
         NSString *account = [NSString stringWithUTF8String:accountValue];

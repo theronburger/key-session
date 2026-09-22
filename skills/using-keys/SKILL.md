@@ -24,12 +24,24 @@ Treat each agent task as a separate consumer. Retain its random consumer capabil
    ```sh
    key-session grant <profile> \
      --consumer "<agent and current task>" \
-     --reason "<specific intended operation>" \
-     --duration <lease duration> \
-     --consumer-duration <task lifetime>
+     --reason "<specific intended operation>"
    ```
 
-   Omit `--consumer-duration` for the 24-hour default. It accepts one hour through seven days. The Touch ID sheet shows the consumer, profile, lease duration, and reason. Capture the returned consumer capability and lease ID in task context without repeating either to the user. Never include secrets in labels or reasons.
+   Use the profile's configured default lease duration: omit `--duration` unless the user explicitly requests a different duration. Do not shorten the lease based on estimated task length; unnecessary expiry forces reauthentication and interrupts unattended work. Also omit `--consumer-duration` for the recommended 24-hour default unless the user explicitly requests another lifetime (one hour through seven days).
+
+   Exception: if the user explicitly asks for a one-hour lease and a two-day consumer lifetime, set those overrides when creating the consumer:
+
+   ```sh
+   key-session grant <profile> \
+     --consumer "<agent and current task>" \
+     --reason "<specific intended operation>" \
+     --duration 1h \
+     --consumer-duration 48h
+   ```
+
+   Include only the override the user requested; a lease-duration request does not imply a different consumer lifetime.
+
+   The Touch ID sheet shows the consumer, profile, lease duration, and reason. Capture the returned consumer capability and lease ID in task context without repeating either to the user. Never include secrets in labels or reasons.
 
    Do not create, replace, or remove profiles unless explicitly requested; those operations change Keychain or configuration state.
 
@@ -50,7 +62,7 @@ Treat each agent task as a separate consumer. Retain its random consumer capabil
 
    ```sh
    KEY_SESSION_CONSUMER_TOKEN='<consumer capability>' \
-     key-session grant <profile> --reason "<specific intended operation>" --duration <duration>
+     key-session grant <profile> --reason "<specific intended operation>"
    ```
 
 6. Prefer read-only discovery before writes. Before a material mutation, verify the environment, database or account, and exact target IDs without exposing the credential. Use markers and idempotent filters for disposable test data.
@@ -108,7 +120,7 @@ Prefer direct program invocation when no mapping is needed. Avoid verbose shell 
 
 ## Lease and consumer cleanup
 
-Allow short leases to expire naturally. Revoke one lease when immediate teardown materially reduces risk:
+Allow leases to expire naturally. Revoke one lease when immediate teardown materially reduces risk:
 
 ```sh
 KEY_SESSION_CONSUMER_TOKEN='<consumer capability>' key-session revoke --lease '<lease ID>'
