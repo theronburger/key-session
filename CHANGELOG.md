@@ -2,6 +2,13 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1](https://github.com/theronburger/key-session/compare/v0.6.0...v0.6.1) (2026-09-22)
+
+
+### Fixed
+
+* authenticate profile removal after confirmation ([#15](https://github.com/theronburger/key-session/issues/15)) ([78d6984](https://github.com/theronburger/key-session/commit/78d6984b27e38600183785d2bcc8782709a6bfca))
+
 ## [0.6.0](https://github.com/theronburger/key-session/compare/v0.5.1...v0.6.0) (2026-08-20)
 
 
