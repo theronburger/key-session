@@ -86,7 +86,7 @@ struct ManageProfileSheet: View {
             Label(
                 isUnlocked
                     ? "The secret exists only in this editor and is cleared when it closes."
-                    : "Touch ID is required before the secret enters the app. Save and remove stay locked until then.",
+                    : "Touch ID is required to reveal or save the secret. Removing a profile asks for separate approval.",
                 systemImage: isUnlocked ? "lock.open.fill" : "lock.shield"
             )
             .font(.caption)
@@ -94,7 +94,7 @@ struct ManageProfileSheet: View {
 
             HStack {
                 Button("Remove Profile…", role: .destructive) { confirmsRemoval = true }
-                    .disabled(!isUnlocked || model.isWorking)
+                    .disabled(model.isWorking)
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Save Changes") { save() }
@@ -110,7 +110,7 @@ struct ManageProfileSheet: View {
             Button("Cancel", role: .cancel) {}
             Button("Remove Profile", role: .destructive) { remove() }
         } message: {
-            Text("This approved editing session allows the daemon to remove the stored secret and profile metadata.")
+            Text("This permanently removes the stored secret and profile, and ends its active leases. Touch ID approval is required next.")
         }
     }
 
@@ -143,11 +143,8 @@ struct ManageProfileSheet: View {
     }
 
     private func remove() {
-        guard let managementSession else { return }
         Task {
-            let removed = await model.delete(managementSession)
-            secret = ""
-            self.managementSession = nil
+            let removed = await model.delete(profile)
             if removed { dismiss() }
         }
     }

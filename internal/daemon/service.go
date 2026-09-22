@@ -442,7 +442,11 @@ func (service *Service) UpdateProfile(name string, request contractv2.ProfileUpd
 	return nil
 }
 
-func (service *Service) DeleteProfile(name, managementToken string) error {
+func (service *Service) DeleteProfile(name string) error {
+	return service.deleteProfile(name, keychain.DeleteWithApproval)
+}
+
+func (service *Service) deleteProfile(name string, deleteWithApproval func(string) error) error {
 	configuration, err := service.config.Load()
 	if err != nil {
 		return err
@@ -450,22 +454,25 @@ func (service *Service) DeleteProfile(name, managementToken string) error {
 	if _, found := configuration.Profiles[name]; !found {
 		return fmt.Errorf("profile %q is not configured", name)
 	}
-	if err := service.consumeManagementSession(name, managementToken); err != nil {
-		return err
+	if err := deleteWithApproval(name); err != nil {
+		return fmt.Errorf("delete profile %q: %w", name, err)
 	}
 	service.mu.Lock()
 	service.clearProfileLeasesLocked(name, "Profile removed")
-	service.mu.Unlock()
-	if err := keychain.Delete(name); err != nil {
-		return fmt.Errorf("delete profile %q: %w", name, err)
+	for token, session := range service.management {
+		if session.profile == name {
+			clearBytes(session.secret)
+			delete(service.management, token)
+		}
 	}
+	service.mu.Unlock()
 	delete(configuration.Profiles, name)
 	if err := service.config.Save(configuration); err != nil {
 		return err
 	}
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	service.recordLocked("profile_removed", name, "", "Key Session.app", "Human profile management", "Profile removed in an approved management session")
+	service.recordLocked("profile_removed", name, "", "Key Session.app", "Human profile management", "Profile removal approved with Touch ID")
 	return nil
 }
 
