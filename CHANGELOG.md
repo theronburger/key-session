@@ -7,7 +7,7 @@ All notable changes are documented here. The project follows [Semantic Versionin
 
 ### Fixed
 
-* authenticate profile removal after confirmation ([#15](https://github.com/theronburger/key-session/issues/15)) ([78d6984](https://github.com/theronburger/key-session/commit/78d6984b27e38600183785d2bcc8782709a6bfca))
+* require confirmation and fresh Touch ID for profile removal, and follow configured lease defaults unless explicitly overridden ([#15](https://github.com/theronburger/key-session/issues/15)) ([78d6984](https://github.com/theronburger/key-session/commit/78d6984b27e38600183785d2bcc8782709a6bfca))
 
 ## [0.6.0](https://github.com/theronburger/key-session/compare/v0.5.1...v0.6.0) (2026-08-20)
 
