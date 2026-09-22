@@ -137,10 +137,10 @@ public final class AppModel {
         }
     }
 
-    public func delete(_ session: ProfileManagementSession) async -> Bool {
+    public func delete(_ profile: KeyProfile) async -> Bool {
         await perform {
             let client = try await self.requireClient()
-            try await client.deleteProfile(session.profile.name, managementToken: session.managementToken)
+            try await client.deleteProfile(profile.name)
         }
     }
 

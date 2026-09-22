@@ -100,12 +100,12 @@ public struct DaemonClient: Sendable {
 		let _: EmptyResponse = try await send("/v2/profiles/\(escaped)", method: "PUT", body: request, as: EmptyResponse.self)
     }
 
-    public func deleteProfile(_ name: String, managementToken: String) async throws {
+    public func deleteProfile(_ name: String) async throws {
         guard let escaped = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { throw DaemonClientError.invalidEndpoint }
         let _: EmptyResponse = try await send(
 			"/v2/profiles/\(escaped)",
             method: "DELETE",
-            body: ProfileManagementTokenRequest(managementToken: managementToken),
+            body: EmptyBody(),
             as: EmptyResponse.self
         )
     }
