@@ -65,6 +65,17 @@ func Delete(account string) error {
 	return bridgeError(status, errorMessage)
 }
 
+func DeleteWithApproval(account string) error {
+	accountCString := C.CString(account)
+	defer C.free(unsafe.Pointer(accountCString))
+	messageCString := C.CString(fmt.Sprintf("Permanently remove the Key Session profile %s and its stored secret.", account))
+	defer C.free(unsafe.Pointer(messageCString))
+
+	var errorMessage *C.char
+	status := C.key_session_keychain_delete_with_approval(accountCString, messageCString, &errorMessage)
+	return bridgeError(status, errorMessage)
+}
+
 func bridgeError(status C.int, errorMessage *C.char) error {
 	if errorMessage != nil {
 		defer C.key_session_keychain_free(unsafe.Pointer(errorMessage))

@@ -317,7 +317,7 @@ func (server *Server) ServeHTTP(response http.ResponseWriter, request *http.Requ
 		if !decodeBody(response, request, &body) {
 			return
 		}
-		if err := server.service.DeleteProfile(name, body.ManagementToken); err != nil {
+		if err := server.service.DeleteProfile(name); err != nil {
 			writeServiceError(response, err)
 			return
 		}
