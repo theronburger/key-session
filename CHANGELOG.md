@@ -2,7 +2,21 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.1](https://github.com/theronburger/key-session/compare/v0.6.0...v0.6.1) (2026-09-22)
+## [0.6.2](https://github.com/theronburger/key-session/compare/v0.6.0...v0.6.2) (2026-09-22)
+
+
+Version 0.6.1 was not published; this release includes its fixes.
+
+### Fixed
+
+* require confirmation and fresh Touch ID for profile removal, and follow configured lease defaults unless explicitly overridden ([#15](https://github.com/theronburger/key-session/issues/15)) ([78d6984](https://github.com/theronburger/key-session/commit/78d6984b27e38600183785d2bcc8782709a6bfca))
+
+### Maintenance
+
+* **deps:** bump the github-actions group across 1 directory with 5 updates ([#11](https://github.com/theronburger/key-session/issues/11)) ([c65cf8b](https://github.com/theronburger/key-session/commit/c65cf8bd575568ab986ad6ece64512bd8dca7a64))
+* **deps:** bump the go-dependencies group with 2 updates ([#14](https://github.com/theronburger/key-session/issues/14)) ([8816646](https://github.com/theronburger/key-session/commit/8816646704e5e730cda46127f62217f85a0d9488))
+
+## [0.6.1](https://github.com/theronburger/key-session/compare/v0.6.0...v0.6.1) (2026-09-22, unpublished)
 
 
 ### Fixed
