@@ -29,6 +29,14 @@ struct ManageProfileSheet: View {
     }
 
     var body: some View {
+        if profile.isSSH {
+            SSHProfileSheet(model: model, profile: profile)
+        } else {
+            secretEditor
+        }
+    }
+
+    private var secretEditor: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 14) {
                 KeyMark(size: 48)

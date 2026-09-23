@@ -19,6 +19,10 @@ public struct DaemonInfo: Decodable, Sendable {
 }
 
 public struct KeyProfile: Decodable, Identifiable, Hashable, Sendable {
+    public let kind: String?
+    public let publicKey: String?
+    public var isSSH: Bool { kind == "ssh" }
+    public var accessLabel: String { isSSH ? "SSH signing" : environmentVariable }
     public var id: String { name }
     public let name: String
     public let environmentVariable: String
@@ -26,6 +30,8 @@ public struct KeyProfile: Decodable, Identifiable, Hashable, Sendable {
 }
 
 public struct KeyLease: Decodable, Identifiable, Sendable, Equatable {
+    public let kind: String?
+    public var accessLabel: String { kind == "ssh" ? "SSH signing" : environmentVariable }
 	public let id: String
 	public let consumerId: String
 	public let consumerLabel: String
@@ -181,4 +187,16 @@ public enum KeySessionFormat {
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: now)
     }
+}
+
+public struct SSHProfileRequest: Encodable, Sendable {
+    public let name: String
+    public let defaultLeaseSeconds: Int
+}
+
+public struct SSHGrantRequest: Encodable, Sendable {
+    public let profile: String
+    public let durationSeconds: Int
+    public let consumerLabel = "Personal SSH session"
+    public let reason = "Use this SSH identity from programs under my Mac account"
 }

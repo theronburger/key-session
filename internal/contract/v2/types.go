@@ -28,12 +28,15 @@ type DaemonInfo struct {
 }
 
 type Profile struct {
+	Kind                string `json:"kind,omitempty"`
+	PublicKey           string `json:"public_key,omitempty"`
 	Name                string `json:"name"`
 	EnvironmentVariable string `json:"environment_variable"`
 	DefaultLeaseSeconds int64  `json:"default_lease_seconds"`
 }
 
 type Lease struct {
+	Kind                string    `json:"kind,omitempty"`
 	ID                  string    `json:"id"`
 	ConsumerID          string    `json:"consumer_id"`
 	ConsumerLabel       string    `json:"consumer_label"`
@@ -184,4 +187,10 @@ type ContractError struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable"`
+}
+
+// SSHProfileRequest creates a signing identity; no private key crosses the API.
+type SSHProfileRequest struct {
+	Name                string `json:"name"`
+	DefaultLeaseSeconds int64  `json:"default_lease_seconds"`
 }

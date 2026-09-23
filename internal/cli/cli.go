@@ -81,6 +81,7 @@ func newRootCommand() *cobra.Command {
 	})
 	root.AddCommand(
 		newSetupCommand(),
+		newSSHCommand(),
 		newGrantCommand(),
 		newStatusCommand(),
 		newExecCommand(),
@@ -124,7 +125,7 @@ func newGrantCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:     "grant <profile>",
 		Short:   "Approve a consumer-scoped expiring lease",
-		Long:    "Create or reuse an ephemeral consumer capability, authenticate with Touch ID, and grant only that consumer a profile lease.",
+		Long:    "Create or reuse an ephemeral consumer capability, authenticate with Touch ID, and grant a profile lease. Secret execution is consumer-scoped; SSH signing is available to same-user programs while any lease for that identity remains active.",
 		Example: "  key-session grant production-read-only --consumer \"Codex: jira-mcp-relay\" --reason \"Verify DEED-123 records\" --duration 15m",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, arguments []string) error {
@@ -308,7 +309,11 @@ func grantProfile(requestedProfile, consumerLabel, reason string, durationOverri
 		fmt.Printf("Consumer %q created until %s.\n", grant.Consumer.Label, grant.Consumer.ExpiresAt.Format(time.RFC3339))
 		fmt.Printf("Consumer capability: %s\n", grant.ConsumerToken)
 	}
-	fmt.Printf("Lease %s grants profile %q as %s for %s.\n", grant.Lease.ID, grant.Lease.Profile, grant.Lease.EnvironmentVariable, friendlyDuration(time.Until(grant.Lease.ExpiresAt)))
+	access := grant.Lease.EnvironmentVariable
+	if grant.Lease.Kind == "ssh" {
+		access = "SSH signing (same-user access)"
+	}
+	fmt.Printf("Lease %s grants profile %q as %s for %s.\n", grant.Lease.ID, grant.Lease.Profile, access, friendlyDuration(time.Until(grant.Lease.ExpiresAt)))
 	return nil
 }
 
@@ -432,13 +437,15 @@ func listProfiles(outputJSON bool) error {
 	if outputJSON {
 		type profileOutput struct {
 			Name                string `json:"name"`
+			Kind                string `json:"kind,omitempty"`
+			PublicKey           string `json:"public_key,omitempty"`
 			EnvironmentVariable string `json:"environment_variable"`
 			LeaseSeconds        int64  `json:"lease_seconds"`
 		}
 		profiles := make([]profileOutput, 0, len(snapshot.Profiles))
 		for _, profile := range snapshot.Profiles {
 			profiles = append(profiles, profileOutput{
-				Name:                profile.Name,
+				Name: profile.Name, Kind: profile.Kind, PublicKey: profile.PublicKey,
 				EnvironmentVariable: profile.EnvironmentVariable,
 				LeaseSeconds:        profile.DefaultLeaseSeconds,
 			})
@@ -446,7 +453,11 @@ func listProfiles(outputJSON bool) error {
 		return printJSON(map[string]any{"profiles": profiles})
 	}
 	for _, profile := range snapshot.Profiles {
-		fmt.Printf("%s -> %s (%s)\n", profile.Name, profile.EnvironmentVariable, friendlyDuration(time.Duration(profile.DefaultLeaseSeconds)*time.Second))
+		access := profile.EnvironmentVariable
+		if profile.Kind == "ssh" {
+			access = "SSH signing"
+		}
+		fmt.Printf("%s -> %s (%s)\n", profile.Name, access, friendlyDuration(time.Duration(profile.DefaultLeaseSeconds)*time.Second))
 	}
 	return nil
 }

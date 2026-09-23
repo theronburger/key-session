@@ -257,3 +257,9 @@ func (client *Client) send(context context.Context, method, path string, body an
 }
 
 const maximumResponseBytes = 4 * 1024 * 1024
+
+func (client *Client) CreateSSHProfile(ctx context.Context, request contractv2.SSHProfileRequest) (contractv2.Profile, error) {
+	var value contractv2.Profile
+	err := client.send(ctx, http.MethodPost, "/v2/ssh/profiles", request, &value)
+	return value, err
+}
