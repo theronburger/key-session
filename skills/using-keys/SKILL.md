@@ -133,3 +133,11 @@ KEY_SESSION_CONSUMER_TOKEN='<consumer capability>' key-session revoke
 ```
 
 Do not revoke access owned by another consumer. The native app is the human administrative surface for inspecting or ending other consumers.
+
+## SSH signing profiles
+
+A profile with `kind: ssh` is a signing identity, not an environment-variable secret. Request its lease with the same `grant` workflow and retain the consumer capability only in the current task. Then run ordinary `ssh` using the preconfigured public IdentityFile and Key Session IdentityAgent socket; do not use `key-session exec` to retrieve or export an SSH private key. Both the destination and any SSH gateway must use that signing socket.
+
+SSH signing is available to same-user programs while any approved lease for the identity remains active. It is not isolated to the requesting consumer. Expiry or revoking the last lease blocks new authentication but does not disconnect existing sessions; screen lock does not revoke a lease. Do not claim stronger isolation. End this task's consumer when its SSH work is complete; do not revoke another consumer.
+
+`key-session ssh public-key <profile>` and `key-session ssh socket` expose only public metadata. `key-session ssh setup <profile>` generates a new identity and changes Keychain/configuration state; only use it when the user requests creation. Enroll public keys with existing authorized access, test the lease path, then remove specifically identified old bypass keys only within the user's approved migration scope. Never change GitHub or unrelated identities just to configure infrastructure SSH.

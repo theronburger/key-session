@@ -9,6 +9,8 @@ import (
 )
 
 type Profile struct {
+	Kind                string `json:"kind,omitempty"`
+	PublicKey           string `json:"public_key,omitempty"`
 	EnvironmentVariable string `json:"environment_variable"`
 	DefaultLeaseSeconds int64  `json:"default_lease_seconds"`
 }

@@ -99,6 +99,21 @@ public final class AppModel {
         }
     }
 
+    public func createSSHProfile(name: String, durationSeconds: Int) async -> Bool {
+        await perform {
+            let client = try await self.requireClient()
+            try await client.createSSHProfile(SSHProfileRequest(name: name, defaultLeaseSeconds: durationSeconds))
+        }
+    }
+
+    public func grantSSH(_ profile: KeyProfile, durationSeconds: Int) async -> Bool {
+        guard profile.isSSH else { return false }
+        return await perform {
+            let client = try await self.requireClient()
+            try await client.grantSSH(SSHGrantRequest(profile: profile.name, durationSeconds: durationSeconds))
+        }
+    }
+
     public func unlockProfileManagement(_ profile: KeyProfile) async -> ProfileManagementSession? {
         guard !isWorking else { return nil }
         isWorking = true

@@ -51,6 +51,7 @@ type profileManagementSession struct {
 
 type Service struct {
 	mu         sync.Mutex
+	profileMu  sync.Mutex
 	config     config.Store
 	audit      auditStore
 	events     []contractv2.Event
@@ -103,7 +104,7 @@ func (service *Service) Snapshot() (contractv2.Snapshot, error) {
 	for _, name := range configuration.SortedProfileNames() {
 		profile := configuration.Profiles[name]
 		profiles = append(profiles, contractv2.Profile{
-			Name: name, EnvironmentVariable: profile.EnvironmentVariable,
+			Name: name, Kind: profile.Kind, PublicKey: profile.PublicKey, EnvironmentVariable: profile.EnvironmentVariable,
 			DefaultLeaseSeconds: profile.DefaultLeaseSeconds,
 		})
 	}
@@ -182,6 +183,8 @@ func (service *Service) Grant(request contractv2.GrantRequest) (contractv2.Grant
 		}
 	}
 
+	service.profileMu.Lock()
+	defer service.profileMu.Unlock()
 	configuration, err := service.config.Load()
 	if err != nil {
 		return contractv2.GrantResponse{}, err
@@ -203,9 +206,18 @@ func (service *Service) Grant(request contractv2.GrantRequest) (contractv2.Grant
 		duration = remaining
 	}
 	message := grantApprovalMessage(consumerLabel, name, request.Reason, duration)
+	if profile.Kind == "ssh" {
+		message += "\n\nSSH signing: available to programs under your Mac account until the last lease ends. Existing connections remain open."
+	}
 	secret, err := keychain.Read(name, message)
 	if err != nil {
 		return contractv2.GrantResponse{}, fmt.Errorf("read profile %q: %w", name, err)
+	}
+	if profile.Kind == "ssh" {
+		if err := validateSSHSecret(secret, profile.PublicKey); err != nil {
+			clearBytes(secret)
+			return contractv2.GrantResponse{}, err
+		}
 	}
 	leaseID, err := randomIdentifier("lease_")
 	if err != nil {
@@ -214,7 +226,7 @@ func (service *Service) Grant(request contractv2.GrantRequest) (contractv2.Grant
 	}
 	now = time.Now()
 	lease := contractv2.Lease{
-		ID: leaseID, ConsumerID: consumerID, ConsumerLabel: consumerLabel,
+		ID: leaseID, Kind: profile.Kind, ConsumerID: consumerID, ConsumerLabel: consumerLabel,
 		Profile: name, EnvironmentVariable: profile.EnvironmentVariable, Reason: request.Reason,
 		GrantedAt: now, ExpiresAt: minTime(now.Add(duration), consumerExpiresAt),
 	}
@@ -346,6 +358,10 @@ func (service *Service) Execute(ctx context.Context, request contractv2.ExecRequ
 		service.mu.Unlock()
 		return contractv2.ExecResponse{}, errors.New("lease is unavailable, expired, or belongs to another consumer")
 	}
+	if lease.metadata.Kind == "ssh" {
+		service.mu.Unlock()
+		return contractv2.ExecResponse{}, errors.New("SSH profiles only sign authentication requests; use ordinary ssh with the Key Session agent")
+	}
 	secret := append([]byte(nil), lease.secret...)
 	environmentVariable := lease.metadata.EnvironmentVariable
 	service.mu.Unlock()
@@ -355,6 +371,15 @@ func (service *Service) Execute(ctx context.Context, request contractv2.ExecRequ
 }
 
 func (service *Service) StoreProfile(request contractv2.ProfileRequest) error {
+	service.profileMu.Lock()
+	defer service.profileMu.Unlock()
+	configuration, err := service.config.Load()
+	if err != nil {
+		return err
+	}
+	if configuration.Profiles[request.Name].Kind == "ssh" {
+		return errors.New("SSH profiles cannot be overwritten by secret profiles")
+	}
 	if err := validateProfile(request.Name, request.EnvironmentVariable, request.DefaultLeaseSeconds); err != nil {
 		return err
 	}
@@ -365,10 +390,6 @@ func (service *Service) StoreProfile(request contractv2.ProfileRequest) error {
 	}
 	if err := keychain.Store(request.Name, secret); err != nil {
 		return fmt.Errorf("store profile %q: %w", request.Name, err)
-	}
-	configuration, err := service.config.Load()
-	if err != nil {
-		return err
 	}
 	configuration.Profiles[request.Name] = config.Profile{
 		EnvironmentVariable: request.EnvironmentVariable,
@@ -384,12 +405,17 @@ func (service *Service) StoreProfile(request contractv2.ProfileRequest) error {
 }
 
 func (service *Service) BeginProfileManagement(name string) (contractv2.ProfileManagementResponse, error) {
+	service.profileMu.Lock()
+	defer service.profileMu.Unlock()
 	configuration, err := service.config.Load()
 	if err != nil {
 		return contractv2.ProfileManagementResponse{}, err
 	}
 	if _, found := configuration.Profiles[name]; !found {
 		return contractv2.ProfileManagementResponse{}, fmt.Errorf("profile %q is not configured", name)
+	}
+	if configuration.Profiles[name].Kind == "ssh" {
+		return contractv2.ProfileManagementResponse{}, errors.New("SSH private keys cannot be revealed or edited; create a new identity to rotate")
 	}
 	secret, err := service.authorizeProfileManagement(name, "Open the human profile editor and view or change its password.")
 	if err != nil {
@@ -410,6 +436,8 @@ func (service *Service) BeginProfileManagement(name string) (contractv2.ProfileM
 }
 
 func (service *Service) UpdateProfile(name string, request contractv2.ProfileUpdateRequest) error {
+	service.profileMu.Lock()
+	defer service.profileMu.Unlock()
 	if err := validateProfile(name, request.EnvironmentVariable, request.DefaultLeaseSeconds); err != nil {
 		return err
 	}
@@ -424,6 +452,9 @@ func (service *Service) UpdateProfile(name string, request contractv2.ProfileUpd
 	}
 	if _, found := configuration.Profiles[name]; !found {
 		return fmt.Errorf("profile %q is not configured", name)
+	}
+	if configuration.Profiles[name].Kind == "ssh" {
+		return errors.New("SSH profiles cannot be edited as secrets")
 	}
 	if err := service.consumeManagementSession(name, request.ManagementToken); err != nil {
 		return err
@@ -447,6 +478,8 @@ func (service *Service) DeleteProfile(name string) error {
 }
 
 func (service *Service) deleteProfile(name string, deleteWithApproval func(string) error) error {
+	service.profileMu.Lock()
+	defer service.profileMu.Unlock()
 	configuration, err := service.config.Load()
 	if err != nil {
 		return err

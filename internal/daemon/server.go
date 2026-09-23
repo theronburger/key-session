@@ -69,6 +69,11 @@ func Run(parent context.Context) error {
 		return err
 	}
 	defer service.Close()
+	sshListener, err := service.listenSSHAgent(filepath.Join(paths.Directory, "ssh-agent.sock"))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sshListener.Close() }()
 	connections, _ := agentconnections.New()
 	server := &Server{
 		service: service, agentConnections: connections, token: token,
@@ -99,13 +104,22 @@ func Run(parent context.Context) error {
 		}
 		finished <- err
 	}()
-	select {
-	case err := <-finished:
-		return err
-	case <-runContext.Done():
-		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		return httpServer.Shutdown(shutdownContext)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case now := <-ticker.C:
+			service.mu.Lock()
+			service.expireLocked(now)
+			service.expireManagementSessionsLocked(now)
+			service.mu.Unlock()
+		case err := <-finished:
+			return err
+		case <-runContext.Done():
+			shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			return httpServer.Shutdown(shutdownContext)
+		}
 	}
 }
 
@@ -256,6 +270,17 @@ func (server *Server) ServeHTTP(response http.ResponseWriter, request *http.Requ
 			return
 		}
 		writeJSON(response, http.StatusOK, result)
+	case request.Method == http.MethodPost && request.URL.Path == "/v2/ssh/profiles":
+		var body contractv2.SSHProfileRequest
+		if !decodeBody(response, request, &body) {
+			return
+		}
+		profile, err := server.service.CreateSSHProfile(body)
+		if err != nil {
+			writeServiceError(response, err)
+			return
+		}
+		writeJSON(response, http.StatusOK, profile)
 	case request.Method == http.MethodPost && request.URL.Path == "/v2/profiles":
 		var body contractv2.ProfileRequest
 		if !decodeBody(response, request, &body) {

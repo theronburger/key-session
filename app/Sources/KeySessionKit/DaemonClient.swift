@@ -90,6 +90,14 @@ public struct DaemonClient: Sendable {
 		let _: EmptyResponse = try await send("/v2/profiles", method: "POST", body: request, as: EmptyResponse.self)
     }
 
+    public func createSSHProfile(_ request: SSHProfileRequest) async throws {
+        let _: KeyProfile = try await send("/v2/ssh/profiles", method: "POST", body: request, as: KeyProfile.self)
+    }
+
+    public func grantSSH(_ request: SSHGrantRequest) async throws {
+        let _: EmptyResponse = try await send("/v2/leases", method: "POST", body: request, as: EmptyResponse.self)
+    }
+
     public func beginProfileManagement(_ name: String) async throws -> ProfileManagementAuthorization {
         guard let escaped = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { throw DaemonClientError.invalidEndpoint }
 		return try await send("/v2/profiles/\(escaped)/management", method: "POST", body: EmptyBody(), as: ProfileManagementAuthorization.self)

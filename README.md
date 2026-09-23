@@ -95,6 +95,14 @@ key-session update
 
 Run `key-session help` or `key-session <command> --help` for complete examples. Human-facing inspection commands support `--json` where automation benefits from it, and Cobra provides shell completion generation.
 
+## SSH access with Touch ID
+
+SSH profiles keep an Ed25519 private key inside the Key Session helper. Approve a lease in the app or with `key-session grant`, then use ordinary OpenSSH through its signing socket. No private key or passphrase is returned to the CLI, coding agent, environment, or profile editor.
+
+While any lease for an SSH identity is active, **programs under your macOS account can use it**. This differs from consumer-scoped secret execution. Expiry/revocation blocks new authentication after the last lease ends; existing connections stay open, and screen lock does not revoke leases.
+
+See [SSH setup and migration](docs/SSH.md) for key creation, public-key enrollment, client configuration, verification and recovery. GitHub and other SSH identities can keep their existing configuration.
+
 ## MCP
 
 `key-session mcp` exposes an agent-appropriate stdio MCP server. The first `request_key_session` call returns a consumer capability and lease ID. The task passes both to later status, execution, and revocation calls; the MCP configuration never contains a shared credential. Secret setup and deletion remain human-facing operations.

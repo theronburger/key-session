@@ -153,7 +153,7 @@ private struct LeaseAccessRow: View {
 			VStack(alignment: .leading, spacing: 2) {
 				HStack(spacing: 7) {
 					Text(lease.profile).font(.body.weight(.medium))
-					Text(lease.environmentVariable).font(.caption.monospaced()).foregroundStyle(.secondary)
+					Text(lease.accessLabel).font(.caption.monospaced()).foregroundStyle(.secondary)
 				}
 				Text(lease.reason).font(.caption).foregroundStyle(.secondary).lineLimit(2)
 			}
@@ -179,7 +179,7 @@ struct ProfileRow: View {
                 .frame(width: 34)
             VStack(alignment: .leading, spacing: 2) {
                 Text(profile.name).font(.body.weight(.medium))
-                Text("\(profile.environmentVariable) · \(KeySessionFormat.duration(profile.defaultLeaseSeconds))")
+                Text("\(profile.accessLabel) · \(KeySessionFormat.duration(profile.defaultLeaseSeconds))")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

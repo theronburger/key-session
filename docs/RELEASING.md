@@ -67,3 +67,23 @@ brew trust --cask theronburger/tap/key-session
 brew install --cask key-session
 xattr -dr com.apple.quarantine "/Applications/Key Session.app"
 ```
+
+### SSH signing release acceptance
+
+For a release that changes SSH signing, follow [SSH setup and migration](SSH.md)
+after verifying and installing the published signed artifact. Keep the current
+administrative access until the replacement is tested; do not install an
+ad-hoc development helper over the signed installation.
+
+- Create a separate SSH profile and enroll only its public key on test targets.
+- Confirm no-lease denial, real Touch ID approval, ordinary OpenSSH success,
+  revocation denial and expiry denial. Test both gateway and destination
+  authentication where a forwarding gateway is used.
+- Check the native SSH profile view, approval and revoke controls, existing
+  secret-profile behavior, signing identity and `key-session doctor`.
+- Before retiring old infrastructure keys, confirm an authorized recovery path.
+  Verify unrelated GitHub/work identities are unchanged and that the retired
+  keys no longer authenticate to the migrated infrastructure accounts.
+- Record the installed version, checks performed and remaining limitations in
+  the deployment's local setup notes. Keep private keys and consumer capabilities
+  out of those notes and release artifacts.
