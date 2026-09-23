@@ -2,6 +2,13 @@
 
 All notable changes are documented here. The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0](https://github.com/theronburger/key-session/compare/v0.6.2...v0.7.0) (2026-09-23)
+
+
+### Added
+
+* add lease-gated SSH signing with Touch ID ([#19](https://github.com/theronburger/key-session/issues/19)) ([84ce0fa](https://github.com/theronburger/key-session/commit/84ce0fa5ba0325886d9ba9f1ce24070c937ff816))
+
 ## [0.6.2](https://github.com/theronburger/key-session/compare/v0.6.0...v0.6.2) (2026-09-22)
 
 
