@@ -65,7 +65,7 @@ Retain the returned consumer capability only in that task, using `KEY_SESSION_CO
 - Expiry or revocation of the last lease stops new authentication, including on an already opened agent socket. Restarting the daemon loses all leases.
 - Existing shells, tunnels and multiplexed transports can remain usable. These are not terminated by signing expiry. The sample disables multiplexing for predictable new-login behavior.
 - Screen lock does not revoke access. Short leases and explicit revocation limit the approved window.
-- The signer validates SSH authentication payloads, but does not enforce destination names or host-key bindings. Enrollment and server policy determine where the identity is accepted.
+- The signer accepts ordinary and OpenSSH host-bound authentication payloads, but does not enforce its own destination allowlist or agent session bindings. Enrollment and server policy determine where the identity is accepted.
 
 ## Verify the migration
 

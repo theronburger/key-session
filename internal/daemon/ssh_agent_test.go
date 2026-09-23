@@ -149,6 +149,63 @@ func TestSSHOnlySignsAuthenticationForAnActiveIdentity(t *testing.T) {
 	}
 }
 
+func TestSSHAuthenticationFormatsAndMalformedRequests(t *testing.T) {
+	service, public, _ := sshFixture(t)
+	var request struct {
+		Session   []byte
+		Message   byte
+		User      string
+		Service   string
+		Method    string
+		Signature bool
+		Algorithm string
+		Key       []byte
+		Rest      []byte `ssh:"rest"`
+	}
+	if err := ssh.Unmarshal(authenticationPayload(public), &request); err != nil {
+		t.Fatal(err)
+	}
+	original := request
+	for _, test := range []struct {
+		name  string
+		valid bool
+		alter func()
+	}{
+		{"ordinary", true, func() {}},
+		{"hostbound", true, func() {
+			request.Method = "publickey-hostbound-v00@openssh.com"
+			request.Rest = ssh.Marshal(struct{ Key []byte }{public.Marshal()})
+		}},
+		{"hostbound_missing_key", false, func() { request.Method = "publickey-hostbound-v00@openssh.com" }},
+		{"hostbound_invalid_key", false, func() {
+			request.Method = "publickey-hostbound-v00@openssh.com"
+			request.Rest = ssh.Marshal(struct{ Key []byte }{[]byte("invalid")})
+		}},
+		{"short_session", false, func() { request.Session = []byte{1} }},
+		{"wrong_message", false, func() { request.Message = 51 }},
+		{"empty_user", false, func() { request.User = "" }},
+		{"wrong_service", false, func() { request.Service = "other" }},
+		{"wrong_method", false, func() { request.Method = "password" }},
+		{"unsigned_probe", false, func() { request.Signature = false }},
+		{"wrong_algorithm", false, func() { request.Algorithm = "ssh-rsa" }},
+		{"wrong_key", false, func() { request.Key = []byte("other") }},
+		{"oversized", false, func() { request.User = strings.Repeat("x", 16384) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request = original
+			test.alter()
+			payload := ssh.Marshal(request)
+			signature, err := (leaseSSHAgent{service}).Sign(public, payload)
+			if (err == nil) != test.valid {
+				t.Fatalf("valid=%v error=%v", test.valid, err)
+			}
+			if test.valid && public.Verify(payload, signature) != nil {
+				t.Fatal("signature verification failed")
+			}
+		})
+	}
+}
+
 func TestSSHLeaseCannotBeExportedOrOverwritten(t *testing.T) {
 	service, _, _ := sshFixture(t)
 	_, err := service.Execute(context.Background(), contractv2.ExecRequest{

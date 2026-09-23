@@ -88,12 +88,28 @@ func sshAuthenticationRequest(public ssh.PublicKey, data []byte) bool {
 		Signature bool
 		Algorithm string
 		Key       []byte
+		Rest      []byte `ssh:"rest"`
 	}
-	return len(data) <= 16384 && ssh.Unmarshal(data, &request) == nil &&
-		len(request.Session) >= 16 && request.Message == 50 && request.User != "" &&
-		request.Service == "ssh-connection" && request.Method == "publickey" && request.Signature &&
-		request.Algorithm == ssh.KeyAlgoED25519 && public.Type() == ssh.KeyAlgoED25519 &&
-		bytes.Equal(request.Key, public.Marshal())
+	if len(data) > 16384 || ssh.Unmarshal(data, &request) != nil ||
+		len(request.Session) < 16 || request.Message != 50 || request.User == "" ||
+		request.Service != "ssh-connection" || !request.Signature ||
+		request.Algorithm != ssh.KeyAlgoED25519 || public.Type() != ssh.KeyAlgoED25519 ||
+		!bytes.Equal(request.Key, public.Marshal()) {
+		return false
+	}
+	switch request.Method {
+	case "publickey":
+		return len(request.Rest) == 0
+	case "publickey-hostbound-v00@openssh.com":
+		var bound struct{ HostKey []byte }
+		if ssh.Unmarshal(request.Rest, &bound) != nil {
+			return false
+		}
+		_, err := ssh.ParsePublicKey(bound.HostKey)
+		return err == nil
+	default:
+		return false
+	}
 }
 
 func (leaseSSHAgent) Add(agent.AddedKey) error       { return errSSHAgentReadOnly }
